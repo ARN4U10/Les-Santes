@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Web final de Les Santes 2026 amb programa públic, mapa interactiu de Mataró i zona Minisantes amb login o mode convidat." />
+  <title>Les Santes 2026 · Minisantes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="icon" href="data:,">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast" aria-live="polite"></div>
+  <header class="site-header" id="siteHeader">
+    <a href="#home" class="brand" aria-label="Anar a l'inici">
+      <span class="brand-logo" aria-hidden="true"></span>
+    </a>
+    <nav class="main-nav" aria-label="Navegació principal">
+      <a href="#home" data-route="home">Inici</a>
+      <a href="#programa" data-route="programa">Programa</a>
+      <a href="#mapa" data-route="mapa">Mapa</a>
+      <a href="#minisantes" data-route="minisantes">Minisantes</a>
+    </nav>
+    <div class="header-actions">
+      <button id="globalSearchBtn" class="icon-btn" title="Cercar" aria-label="Cercar">⌕</button>
+      <button id="coinsBtn" class="coin-pill" title="Monedes Minisantes" aria-label="Monedes Minisantes"><span>●</span><strong id="coinCounter">0</strong></button>
+      <button id="userButton" class="avatar-btn" title="Perfil" aria-label="Perfil">🧒</button>
+      <button id="mobileMenuBtn" class="icon-btn mobile-only" title="Menú" aria-label="Menú">☰</button>
+    </div>
+  </header>
+
+  <aside id="mobileMenu" class="mobile-menu" aria-label="Menú mòbil">
+    <a href="#home">Inici</a>
+    <a href="#programa">Programa</a>
+    <a href="#mapa">Mapa d'actes</a>
+    <a href="#minisantes">Minisantes</a>
+    <a href="#botiga">Botiga</a>
+    <a href="#inventari">Inventari</a>
+    <a href="#perfil">Perfil</a>
+  </aside>
+
+  <main id="app" class="app-shell" tabindex="-1"></main>
+
+  <footer class="site-footer">
+    <div>Les Santes Mataró</div>
+    <div class="footer-links">
+      <a href="#programa">Programa</a>
+      <a href="#mapa">Mapa</a>
+      <a href="#minisantes">Minisantes</a>
+      <a href="#login">Accés</a>
+    </div>
+    <div>© 2026 Ajuntament de Mataró</div>
+  </footer>
+
+  <div id="searchOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Cercador d'actes">
+    <div class="search-panel">
+      <button class="close-btn" id="closeSearch" aria-label="Tancar cercador">×</button>
+      <h2>Cerca un acte</h2>
+      <p>Busca per nom, lloc o categoria.</p>
+      <input id="globalSearchInput" class="search-input" type="search" placeholder="Ex: castellers, concert, gegants..." autocomplete="off" />
+      <div id="globalSearchResults" class="search-results"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
