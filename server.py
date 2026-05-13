@@ -303,9 +303,9 @@ class Handler(SimpleHTTPRequestHandler):
                         """,
                         (username, password_hash(password), username),
                     )
-                    conn.execute(
-                        "INSERT OR IGNORE INTO game_progress(user_id, game_key, best_score, coins_earned) VALUES (?, 'castell', 0, 0)",
-                        (cur.lastrowid,),
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO game_progress(user_id, game_key, best_score, coins_earned) VALUES (?, ?, 0, 0)",
+                        [(cur.lastrowid, "castell"), (cur.lastrowid, "parelles"), (cur.lastrowid, "confeti")],
                     )
                     return self.send_json(profile_payload(conn, cur.lastrowid), HTTPStatus.CREATED)
 
@@ -326,6 +326,30 @@ class Handler(SimpleHTTPRequestHandler):
                         return self.send_json({"error": "No tens prou monedes"}, HTTPStatus.BAD_REQUEST)
                     conn.execute("UPDATE users SET coins = coins - ? WHERE id = ?", (reward["cost"], user_id))
                     conn.execute("INSERT INTO user_rewards(user_id, reward_id) VALUES (?, ?)", (user_id, reward_id))
+                    return self.send_json(profile_payload(conn, user_id))
+
+                if parsed.path == "/api/progress":
+                    user_id = int(payload.get("user_id", 0))
+                    game_key = str(payload.get("game_key", "")).strip()
+                    score = max(0, int(payload.get("score", 0)))
+                    coins = max(0, min(500, int(payload.get("coins", 0))))
+                    if game_key not in {"castell", "parelles", "confeti"}:
+                        return self.send_json({"error": "Minijoc no valid"}, HTTPStatus.BAD_REQUEST)
+                    user = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+                    if not user:
+                        return self.send_json({"error": "Usuari no trobat"}, HTTPStatus.NOT_FOUND)
+                    conn.execute(
+                        """
+                        INSERT INTO game_progress(user_id, game_key, best_score, coins_earned)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(user_id, game_key) DO UPDATE SET
+                          best_score = MAX(best_score, excluded.best_score),
+                          coins_earned = coins_earned + excluded.coins_earned,
+                          updated_at = CURRENT_TIMESTAMP
+                        """,
+                        (user_id, game_key, score, coins),
+                    )
+                    conn.execute("UPDATE users SET coins = coins + ? WHERE id = ?", (coins, user_id))
                     return self.send_json(profile_payload(conn, user_id))
         except sqlite3.IntegrityError:
             return self.send_json({"error": "Aquest usuari ja existeix"}, HTTPStatus.CONFLICT)

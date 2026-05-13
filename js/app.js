@@ -16,7 +16,9 @@ const state = {
   markers: [],
   selectedMapId: null,
   loading: true,
-  error: ''
+  error: '',
+  memoryTimer: null,
+  memoryPreviewTimer: null
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -318,7 +320,7 @@ function renderPrograma() {
     family: result.filter((e) => e.cat === 'Familiar').length
   };
   app.innerHTML = `
-    ${pageTitle('Programa', 'Actes públics importats del JSON oficial. Filtra per dia, categoria o cerca lliure.', '<a class="btn btn-map" href="#mapa">Veure mapa d’actes</a>')}
+    ${pageTitle('Programa', 'Filtra per dia, categoria o cerca lliure.', '<a class="btn btn-map" href="#mapa">Veure mapa d’actes</a>')}
     <div class="filters" id="dayFilters">${uniqueDays().map((d) => `<button class="chip ${state.filters.day === d ? 'active' : ''}" data-day="${escapeHTML(d)}">${escapeHTML(d)}</button>`).join('')}</div>
     <div class="filters" id="catFilters">${categories().map((c) => `<button class="chip ${state.filters.category === c ? 'active' : ''}" data-cat="${escapeHTML(c)}">${escapeHTML(c)}</button>`).join('')}</div>
     <label class="field"><span>Cercar actes</span><input id="programSearch" class="input" type="search" placeholder="Castellers, concert, gegants..." value="${escapeHTML(state.filters.q)}"></label>
@@ -775,7 +777,286 @@ function renderMinisantes() {
     renderMinisantesAccess();
     updateHeader();
   });
-  app.querySelectorAll('[data-play]').forEach((btn) => btn.addEventListener('click', () => toast('Minijoc en estat prototip. Properament!')));
+  app.querySelectorAll('[data-play]').forEach((btn) => btn.addEventListener('click', () => {
+    if (btn.dataset.play === 'parelles') {
+      location.hash = '#memory';
+      return;
+    }
+    toast('Minijoc en estat prototip. Properament!');
+  }));
+}
+
+function renderMemoryGame() {
+  if (!state.user && !state.guest) return renderMinisantesAccess();
+  clearInterval(state.memoryTimer);
+  const images = [
+    'bruixa.png',
+    'diable.png',
+    'follet.png',
+    'moro.png',
+    'mulata.png',
+    'patufet.png',
+    'vella.png',
+    'xines.png'
+  ];
+  const labels = ['Bruixa', 'Diable', 'Follet', 'Moro', 'Mulata', 'Patufet', 'Vella', 'Xines'];
+  const game = {
+    mode: 'easy',
+    deck: [],
+    flipped: [],
+    matched: new Set(),
+    locked: false,
+    active: false,
+    moves: 0,
+    score: 0,
+    combo: 0,
+    coins: 0,
+    elapsed: 0
+  };
+
+  app.innerHTML = `
+    <section class="memory-shell" aria-labelledby="memoryTitle">
+      <div class="memory-head">
+        <div>
+          <a class="mini-pill-link memory-back" href="#minisantes">← MiniSantes</a>
+          <span class="eyebrow yellow">Joc de memòria</span>
+          <h2 id="memoryTitle">Troba les parelles<span class="dot">.</span></h2>
+          <p class="lead">Destapa personatges de Les Santes, recorda on són i completa totes les parelles amb el mínim d’intents.</p>
+        </div>
+        <div class="memory-mode" role="group" aria-label="Dificultat">
+          <button class="chip active" type="button" data-memory-mode="easy">Fàcil · 4x3</button>
+          <button class="chip" type="button" data-memory-mode="hard">Difícil · 4x4</button>
+        </div>
+      </div>
+
+      <div class="memory-stage">
+        <div class="memory-stars" id="memoryStars" aria-hidden="true"></div>
+        <div class="memory-confetti" id="memoryConfetti" aria-hidden="true"></div>
+        <div class="memory-topbar">
+          <strong>Les Parelles Santeres</strong>
+          <div><span id="memoryScore">0 pts</span><span id="memoryTime">00:00</span></div>
+        </div>
+        <div class="memory-stats" aria-label="Estadístiques del joc">
+          <article><strong id="memoryMoves">0</strong><span>Intents</span></article>
+          <article><strong id="memoryPairs">0/0</strong><span>Parelles</span></article>
+          <article><strong id="memoryCombo">x1</strong><span>Combo</span></article>
+          <article><strong id="memoryCoins">0</strong><span>Monedes</span></article>
+        </div>
+        <div class="memory-level" id="memoryLevel">Nivell fàcil</div>
+        <div class="memory-grid-wrap"><div class="memory-grid" id="memoryGrid"></div></div>
+        <div class="memory-overlay" id="memoryOverlay">
+          <div>
+            <strong>Memoritza les cartes!</strong>
+            <span>Comença en <b id="memoryCountdown">3</b></span>
+          </div>
+        </div>
+        <div class="memory-end" id="memoryEnd" aria-live="polite"></div>
+      </div>
+    </section>`;
+
+  function memoryEl(id) {
+    return document.getElementById(id);
+  }
+
+  function fmtT(seconds) {
+    return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  function shuffle(items) {
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  function makeStars() {
+    const area = memoryEl('memoryStars');
+    area.innerHTML = Array.from({ length: 55 }, () => {
+      const size = 1 + Math.random() * 3;
+      return `<i style="left:${Math.random() * 100}%;top:${Math.random() * 100}%;width:${size}px;height:${size}px"></i>`;
+    }).join('');
+  }
+
+  function updateHUD() {
+    memoryEl('memoryScore').textContent = `${game.score} pts`;
+    memoryEl('memoryMoves').textContent = game.moves;
+    memoryEl('memoryPairs').textContent = `${Math.floor(game.matched.size / 2)}/${game.deck.length / 2}`;
+    memoryEl('memoryCombo').textContent = `x${game.combo || 1}`;
+    memoryEl('memoryCoins').textContent = game.coins;
+  }
+
+  function launchConfetti() {
+    const colors = ['#ffd100', '#e10600', '#35d07f', '#38bdf8', '#ff922b', '#fff8ef'];
+    memoryEl('memoryConfetti').innerHTML = Array.from({ length: 70 }, () =>
+      `<i style="left:${Math.random() * 100}%;background:${colors[Math.floor(Math.random() * colors.length)]}"></i>`
+    ).join('');
+    setTimeout(() => {
+      const layer = memoryEl('memoryConfetti');
+      if (layer) layer.innerHTML = '';
+    }, 3200);
+  }
+
+  async function saveMemoryProgress(finalScore, earnedCoins) {
+    if (!state.user || earnedCoins <= 0) return;
+    try {
+      const data = await api('/progress', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: state.user.id,
+          game_key: 'parelles',
+          score: finalScore,
+          coins: earnedCoins
+        })
+      });
+      state.user = data.user;
+      state.inventory = data.inventory || [];
+      state.progress = data.progress || [];
+      updateHeader();
+      toast(`Has guanyat ${earnedCoins} monedes!`);
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  function endGame() {
+    clearInterval(state.memoryTimer);
+    game.active = false;
+    const timeBonus = Math.max(0, (game.mode === 'easy' ? 120 : 180) - game.elapsed) * 5;
+    const moveBonus = Math.max(0, (game.mode === 'easy' ? 24 : 36) - game.moves) * 20;
+    game.coins = game.mode === 'easy' ? 60 : 100;
+    game.score += timeBonus + moveBonus;
+    updateHUD();
+    launchConfetti();
+    memoryEl('memoryEnd').innerHTML = `
+      <div class="memory-end-box">
+        <div class="memory-crown">🏆</div>
+        <h3>Has guanyat!</h3>
+        <p>${game.mode === 'easy' ? 'Has completat el nivell fàcil.' : 'Has completat el nivell difícil.'}</p>
+        <div class="memory-result"><span>Puntuació</span><strong>${money(game.score)} pts</strong></div>
+        <div class="memory-result"><span>Temps</span><strong>${fmtT(game.elapsed)}</strong></div>
+        <div class="memory-result"><span>Intents</span><strong>${game.moves}</strong></div>
+        <div class="memory-result"><span>Monedes</span><strong>${game.coins}</strong></div>
+        <button class="btn btn-primary primary-highlight" type="button" id="memoryReplay">Tornar a jugar</button>
+        <button class="btn btn-ghost" type="button" id="memoryNext">Canviar nivell</button>
+        <a class="btn btn-yellow reward-highlight" href="#minisantes">Tornar a MiniSantes</a>
+      </div>`;
+    memoryEl('memoryEnd').classList.add('show');
+    memoryEl('memoryReplay')?.addEventListener('click', startGame);
+    memoryEl('memoryNext')?.addEventListener('click', () => {
+      setMode(game.mode === 'easy' ? 'hard' : 'easy');
+    });
+    saveMemoryProgress(game.score, game.coins);
+    if (!state.user && state.guest) toast('Mode convidat: resultat no guardat');
+  }
+
+  function flip(index) {
+    if (game.locked || !game.active || game.flipped.includes(index) || game.matched.has(game.deck[index].uid)) return;
+    memoryEl(`memoryCard${index}`)?.classList.add('flipped');
+    game.flipped.push(index);
+    if (game.flipped.length !== 2) return;
+
+    game.locked = true;
+    game.moves++;
+    const first = game.deck[game.flipped[0]];
+    const second = game.deck[game.flipped[1]];
+    if (first.id === second.id) {
+      game.combo++;
+      game.score += 100 * game.combo;
+      game.matched.add(first.uid);
+      game.matched.add(second.uid);
+      setTimeout(() => {
+        game.flipped.forEach((cardIndex) => memoryEl(`memoryCard${cardIndex}`)?.classList.add('matched'));
+        game.flipped = [];
+        game.locked = false;
+        updateHUD();
+        if (game.matched.size === game.deck.length) endGame();
+      }, 280);
+    } else {
+      game.combo = 0;
+      setTimeout(() => {
+        game.flipped.forEach((cardIndex) => memoryEl(`memoryCard${cardIndex}`)?.classList.remove('flipped'));
+        game.flipped = [];
+        game.locked = false;
+        updateHUD();
+      }, 720);
+    }
+    updateHUD();
+  }
+
+  function startGame() {
+    clearInterval(state.memoryTimer);
+    clearInterval(state.memoryPreviewTimer);
+    Object.assign(game, {
+      deck: [],
+      flipped: [],
+      matched: new Set(),
+      locked: true,
+      active: false,
+      moves: 0,
+      score: 0,
+      combo: 0,
+      coins: 0,
+      elapsed: 0
+    });
+    memoryEl('memoryEnd').classList.remove('show');
+    memoryEl('memoryTime').textContent = '00:00';
+    memoryEl('memoryLevel').textContent = game.mode === 'easy' ? 'Nivell fàcil' : 'Nivell difícil';
+    const pairs = game.mode === 'easy' ? 6 : 8;
+    const rows = game.mode === 'easy' ? 3 : 4;
+    const selected = images.slice(0, pairs).map((img, id) => ({ id, img, label: labels[id] }));
+    game.deck = shuffle([...selected, ...selected].map((card, uid) => ({ ...card, uid })));
+    const grid = memoryEl('memoryGrid');
+    grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+    grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+    grid.classList.toggle('hard', game.mode === 'hard');
+    grid.innerHTML = game.deck.map((card, index) => `
+      <button class="memory-card flipped" id="memoryCard${index}" type="button" data-card="${index}" aria-label="Carta ${index + 1}">
+        <span class="memory-card-back"><b>🌹</b><i></i></span>
+        <span class="memory-card-front"><img src="img/memory/${escapeHTML(card.img)}" alt="${escapeHTML(card.label)}"><small>${escapeHTML(card.label)}</small></span>
+      </button>`).join('');
+    updateHUD();
+
+    let countdown = 3;
+    memoryEl('memoryCountdown').textContent = countdown;
+    memoryEl('memoryOverlay').classList.remove('hidden');
+    state.memoryPreviewTimer = setInterval(() => {
+      if (!memoryEl('memoryCountdown')) {
+        clearInterval(state.memoryPreviewTimer);
+        return;
+      }
+      countdown--;
+      memoryEl('memoryCountdown').textContent = countdown;
+      if (countdown > 0) return;
+      clearInterval(state.memoryPreviewTimer);
+      game.deck.forEach((_, index) => memoryEl(`memoryCard${index}`)?.classList.remove('flipped'));
+      setTimeout(() => {
+        if (!memoryEl('memoryOverlay')) return;
+        memoryEl('memoryOverlay').classList.add('hidden');
+        game.locked = false;
+        game.active = true;
+        state.memoryTimer = setInterval(() => {
+          game.elapsed++;
+          memoryEl('memoryTime').textContent = fmtT(game.elapsed);
+        }, 1000);
+      }, 350);
+    }, 1000);
+  }
+
+  function setMode(mode) {
+    game.mode = mode;
+    app.querySelectorAll('[data-memory-mode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.memoryMode === mode));
+    startGame();
+  }
+
+  app.querySelectorAll('[data-memory-mode]').forEach((btn) => btn.addEventListener('click', () => setMode(btn.dataset.memoryMode)));
+  memoryEl('memoryGrid')?.addEventListener('click', (e) => {
+    const card = e.target.closest('[data-card]');
+    if (card) flip(Number(card.dataset.card));
+  });
+  makeStars();
+  startGame();
 }
 
 function renderMinisantesAccess() {
@@ -875,7 +1156,7 @@ function renderPerfil() {
   if (!requireRegistered()) return;
   const totalCoins = state.progress.reduce((sum, item) => sum + item.coins_earned, 0);
   app.innerHTML = `
-    ${pageTitle('Perfil', 'Dades llegides des de la base de dades SQLite.', '<button class="btn btn-ghost" id="logoutBtn">Tancar sessió</button>')}
+    ${pageTitle('Perfil', 'Personalitza el teu perfil i consulta el teu progrés.', '<button class="btn btn-ghost" id="logoutBtn">Tancar sessió</button>')}
     <section class="profile-top">
       <article class="card profile-card"><div class="profile-row"><div class="big-avatar">🧒</div><div><h2>${escapeHTML(state.user.display_name)}</h2><span class="eyebrow yellow">Nivell ${state.user.level}</span><p class="coin-line reward-highlight">● ${money(state.user.coins)} <span>monedes</span></p></div></div></article>
       <article class="card profile-card"><h3>Resum Minisantes</h3><div class="quick-stats"><div class="stat"><strong>${state.inventory.length}</strong><span>premis</span></div><div class="stat"><strong>${state.progress.length}</strong><span>jocs</span></div><div class="stat"><strong>${money(totalCoins)}</strong><span>guanyades</span></div></div></article>
@@ -904,7 +1185,7 @@ function activityItem(title, desc, right) {
 }
 
 function renderLogin() {
-  app.innerHTML = `<section class="login-screen"><div class="card login-card"><span class="eyebrow yellow">Compte Minisantes</span><h2>Accedeix<span class="dot">.</span></h2><p>Entra o crea un compte. El perfil, inventari i botiga depenen de SQLite.</p><div class="auth-tabs"><button class="active" id="tabLogin" type="button">Login</button><button id="tabRegister" type="button">Registre</button></div><form id="authForm"><label class="field"><span>Usuari</span><input class="input" id="authUser" required placeholder="biel09" autocomplete="username"></label><label class="field"><span>Contrasenya</span><input class="input" id="authPass" type="password" required placeholder="santes2026" autocomplete="current-password"></label><button class="btn btn-primary primary-highlight full" type="submit">Entrar</button></form><p class="hint">Usuari de prova: <strong>biel09</strong> · contrasenya: <strong>santes2026</strong></p></div></section>`;
+  app.innerHTML = `<section class="login-screen"><div class="card login-card"><span class="eyebrow yellow">Compte Minisantes</span><h2>Accedeix<span class="dot">.</span></h2><p>Entra o crea un compte. El perfil, inventari i botiga només funcionen amb un compte.</p><div class="auth-tabs"><button class="active" id="tabLogin" type="button">Login</button><button id="tabRegister" type="button">Registre</button></div><form id="authForm"><label class="field"><span>Usuari</span><input class="input" id="authUser" required placeholder="biel09" autocomplete="username"></label><label class="field"><span>Contrasenya</span><input class="input" id="authPass" type="password" required placeholder="santes2026" autocomplete="current-password"></label><button class="btn btn-primary primary-highlight full" type="submit">Entrar</button></form><p class="hint">Usuari de prova: <strong>biel09</strong> · contrasenya: <strong>santes2026</strong></p></div></section>`;
   let mode = 'login';
   $('#tabLogin').addEventListener('click', () => {
     mode = 'login';
@@ -982,6 +1263,8 @@ function router() {
     state.detailMap.remove();
     state.detailMap = null;
   }
+  clearInterval(state.memoryTimer);
+  clearInterval(state.memoryPreviewTimer);
   $('#mobileMenu')?.classList.remove('open');
   updateHeader();
   if (state.loading) {
@@ -997,6 +1280,7 @@ function router() {
     programa: renderPrograma,
     mapa: renderMapa,
     minisantes: renderMinisantes,
+    memory: renderMemoryGame,
     botiga: renderBotiga,
     inventari: renderInventari,
     perfil: renderPerfil,
