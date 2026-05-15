@@ -17,9 +17,80 @@ const state = {
   selectedMapId: null,
   loading: true,
   error: '',
+  castleTimer: null,
   memoryTimer: null,
-  memoryPreviewTimer: null
+  memoryPreviewTimer: null,
+  officialGameCleanup: null
 };
+
+const MINISANTES_GAMES = [
+  {
+    key: 'castell',
+    title: 'Construeix el Castell',
+    subtitle: 'Deixa caure castellers ben alineats i aixeca una torre inspirada en la cultura castellera de Les Santes.',
+    icon: '🏰',
+    badge: 'Disponible',
+    prize: '+150',
+    status: 'Disponible',
+    theme: 'castle',
+    accent: 'game-card-red'
+  },
+  {
+    key: 'parelles',
+    title: 'Troba les Parelles',
+    subtitle: 'Memory amb gegants, diables, capgrossos i figures festives de Mataró.',
+    icon: '🎴',
+    badge: 'Disponible',
+    prize: '+100',
+    status: 'Disponible',
+    theme: 'pairs',
+    accent: 'game-card-yellow'
+  },
+  {
+    key: 'confeti',
+    title: 'Atrapa el Confeti',
+    subtitle: 'Toca el confeti de la festa i prepara combos per quan s’obri el minijoc complet.',
+    icon: '🎉',
+    badge: 'Properament',
+    prize: '+200',
+    status: 'Properament',
+    theme: 'confetti',
+    accent: 'game-card-blue'
+  },
+  {
+    key: 'gegants',
+    title: 'Fes Ballar els Gegants',
+    subtitle: 'Segueix el ritme i toca seqüències perquè els Gegants ballin com a la festa major.',
+    icon: '🎭',
+    badge: 'Disponible',
+    prize: '+180',
+    status: 'Disponible',
+    theme: 'giants',
+    accent: 'game-card-green'
+  },
+  {
+    key: 'correfoc',
+    title: 'Correfoc Segur',
+    subtitle: 'Esquiva espurnes, segueix el camí i viu el foc de Les Santes amb reflexos ràpids.',
+    icon: '🔥',
+    badge: 'Disponible',
+    prize: '+220',
+    status: 'Disponible',
+    theme: 'fire',
+    accent: 'game-card-orange'
+  },
+  {
+    key: 'campanes',
+    title: 'Toc de Campanes',
+    subtitle: 'Recorda una seqüència sonora i visual inspirada en els tocs tradicionals de campanes.',
+    icon: '🔔',
+    badge: 'Disponible',
+    prize: '+160',
+    status: 'Disponible',
+    theme: 'bells',
+    accent: 'game-card-purple'
+  }
+];
 
 const $ = (sel) => document.querySelector(sel);
 const app = $('#app');
@@ -191,6 +262,49 @@ function featuredEvents() {
   return (preferred.length ? preferred : state.events).slice(0, 8);
 }
 
+function dateKey(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function eventDate(ev) {
+  return ev.timestamp ? new Date(ev.timestamp) : null;
+}
+
+function nearbyFeaturedEvents(limit = 8) {
+  const now = new Date();
+  const today = dateKey(now);
+  const sorted = [...state.events].filter((ev) => ev.timestamp).sort((a, b) => a.timestamp - b.timestamp);
+  const todayEvents = sorted.filter((ev) => dateKey(eventDate(ev)) === today);
+  if (todayEvents.length) {
+    return {
+      mode: 'today',
+      title: 'Actes d’avui',
+      text: `Actes del ${now.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' })}.`,
+      events: todayEvents.slice(0, limit)
+    };
+  }
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const upcoming = sorted.filter((ev) => ev.timestamp >= startOfToday);
+  if (upcoming.length) {
+    return {
+      mode: 'upcoming',
+      title: 'Propers actes disponibles',
+      text: 'Avui no hi ha actes carregats. Et mostrem els actes més propers del programa.',
+      events: upcoming.slice(0, limit)
+    };
+  }
+
+  const highlighted = featuredEvents().sort((a, b) => a.timestamp - b.timestamp);
+  return {
+    mode: 'fallback',
+    title: 'Actes destacats més propers',
+    text: 'No hi ha actes futurs a les dades carregades. Et mostrem destacats del programa disponible.',
+    events: highlighted.slice(0, limit)
+  };
+}
+
 function uniqueDays() {
   return ['Tots', ...new Set(state.events.map((e) => e.day).filter(Boolean))].slice(0, 14);
 }
@@ -212,9 +326,11 @@ function filteredEvents() {
 
 function renderHome() {
   const hero = featuredEvents()[0] || state.events[0];
-  const highlights = featuredEvents().slice(0, 4);
+  const nearby = nearbyFeaturedEvents(4);
+  const highlights = nearby.events;
   const quickLinks = [
     { href: '#programa', icon: '📅', theme: 'red', title: 'Programa', text: 'Consulta tots els actes, filtra per dia i troba el teu pla.' },
+    { href: '#home/avui', icon: '⏱️', theme: 'gold', title: 'Què passa avui?', text: 'Baixa directament als actes destacats de la portada.' },
     { href: '#mapa', icon: '🗺️', theme: 'blue', title: 'Mapa d’actes', text: 'Explora Mataró amb pins reals i ubicacions sincronitzades.' },
     { href: '#minisantes', icon: '🎮', theme: 'yellow', title: 'MiniSantes', text: 'Jocs, reptes i recompenses per a infants de 6 a 12 anys.' },
     ...(state.user ? [{ href: '#botiga', icon: '🎁', theme: 'gold', title: 'Recompenses', text: 'Canvia monedes per premis i col·leccionables digitals.' }] : [])
@@ -231,18 +347,18 @@ function renderHome() {
           <div class="home-date-chip"><span>Del 25 al 29 de juliol</span><strong>Nit, foc, música i cultura popular</strong></div>
           <p class="lead">Viu el programa, situa cada acte al mapa i entra a MiniSantes per jugar amb la festa.</p>
           <div class="cta-row home-hero-actions">
-            <a class="btn btn-primary primary-highlight" href="#programa">Què passa avui?</a>
+            <a class="btn btn-primary primary-highlight" href="#home/avui">Què passa avui?</a>
             <a class="btn btn-yellow reward-highlight" href="#programa">Veure programa</a>
             <a class="btn btn-map" href="#mapa">Mapa d’actes</a>
           </div>
         </div>
       </section>
 
-      <section class="section home-today">
+      <section class="section home-today" id="homeToday" tabindex="-1">
         <div class="section-head home-section-head">
           <div>
-            <span class="eyebrow yellow">Avui a Les Santes</span>
-            <h2>Agenda viva</h2>
+            <span class="eyebrow yellow">Actes propers</span>
+            <h2>${escapeHTML(nearby.title)}</h2>
           </div>
           <a href="#programa">Veure tot el programa</a>
         </div>
@@ -265,7 +381,7 @@ function renderHome() {
           <h2>La festa també es <span>juga</span></h2>
           <p>Minijocs, reptes i premis perquè els infants visquin Les Santes d’una manera divertida.</p>
           <div class="home-mini-stats" aria-label="Resum MiniSantes">
-            <article><span>🎮</span><strong>3</strong><small>Minijocs</small></article>
+            <article><span>🎮</span><strong>${MINISANTES_GAMES.length}</strong><small>Minijocs</small></article>
             <article><span>🎁</span><strong>${state.rewards.length}</strong><small>Premis</small></article>
             <article><span>⭐</span><strong>${state.user ? state.user.level : 4}</strong><small>Nivells</small></article>
           </div>
@@ -607,7 +723,7 @@ function renderDetail(id) {
         <h3>Sobre l’esdeveniment</h3>
         <p class="description">${escapeHTML(ev.longText)}</p>
         <div class="cta-row">
-          <a class="btn btn-primary primary-highlight" href="#mapa" id="goMap">Com arribar</a>
+          <button class="btn btn-primary primary-highlight" type="button" id="goMap">Com arribar</button>
           <a class="btn btn-ghost" href="#programa">Tornar al programa</a>
         </div>
       </article>
@@ -616,11 +732,41 @@ function renderDetail(id) {
         <div class="side-map info-highlight" id="detailMap" aria-label="Mapa petit de l’acte"></div>
       </aside>
     </section>`;
-  $('#goMap')?.addEventListener('click', () => {
-    state.selectedMapId = ev.id;
-    state.filters.category = 'Tots';
-  });
+  $('#goMap')?.addEventListener('click', () => openDirections(ev));
   setTimeout(() => initDetailMap(ev), 100);
+}
+
+function googleMapsRouteUrl(ev, origin = null) {
+  const destination = `${mapCoordinate(ev.lat)},${mapCoordinate(ev.lng)}`;
+  const params = new URLSearchParams({ api: '1', destination, travelmode: 'walking' });
+  if (origin) params.set('origin', `${origin.latitude},${origin.longitude}`);
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function openMapWindow(url, popup = null) {
+  if (popup && !popup.closed) {
+    popup.location.href = url;
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
+function openDirections(ev) {
+  if (!hasValidMapPoint(ev)) {
+    toast('No hi ha ubicació disponible');
+    return;
+  }
+  const fallbackUrl = googleMapsRouteUrl(ev);
+  const popup = window.open('', '_blank');
+  if (!navigator.geolocation) {
+    openMapWindow(fallbackUrl, popup);
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => openMapWindow(googleMapsRouteUrl(ev, pos.coords), popup),
+    () => openMapWindow(fallbackUrl, popup),
+    { enableHighAccuracy: true, timeout: 6000, maximumAge: 300000 }
+  );
 }
 
 function initDetailMap(ev) {
@@ -666,7 +812,7 @@ function renderMinisantes() {
           <h1 id="miniTitle">La festa també<br>es <span>juga</span></h1>
           <p class="lead">Explora MiniSantes amb minijocs, monedes, reptes i premis pensats perquè els infants visquin Les Santes d’una manera divertida.</p>
           <div class="mini-hero-stats" aria-label="Resum de MiniSantes">
-            <article><span>🎮</span><strong>3</strong><small>minijocs</small></article>
+            <article><span>🎮</span><strong>${MINISANTES_GAMES.length}</strong><small>minijocs</small></article>
             <article><span>🎁</span><strong>${state.rewards.length || 8}</strong><small>premis</small></article>
             <article><span>⭐</span><strong>${logged ? escapeHTML(state.user.level) : '4'}</strong><small>nivells</small></article>
           </div>
@@ -744,12 +890,10 @@ function renderMinisantes() {
       <section class="section mini-games-panel mini-games-ultra">
         <div class="section-head">
           <div><h3>Jocs destacats</h3><p>Escull una aventura i juga amb la cultura popular de Mataró.</p></div>
-          <a href="${logged ? '#perfil' : '#login'}">${logged ? 'Veure progrés' : 'Crear compte'} →</a>
+          <a href="#jocs">Veure tots els jocs →</a>
         </div>
         <div class="grid-3 game-grid mini-game-grid">
-          ${gameCard('Construeix el castell', 'Apila castellers i intenta arribar al cel sense que caigui la torre.', '🏰', 'Nou', '+150', 'castell')}
-          ${gameCard('Troba les parelles', 'Memory amb gegants, diables, capgrossos i símbols de la festa.', '🎴', 'Popular', '+100', 'parelles')}
-          ${gameCard('Atrapa el confeti', 'Toca el confeti, esquiva els perills i fes pujar el combo.', '🎉', 'Fàcil', '+200', 'confeti')}
+          ${MINISANTES_GAMES.slice(0, 3).map(gameCard).join('')}
         </div>
       </section>
 
@@ -777,13 +921,7 @@ function renderMinisantes() {
     renderMinisantesAccess();
     updateHeader();
   });
-  app.querySelectorAll('[data-play]').forEach((btn) => btn.addEventListener('click', () => {
-    if (btn.dataset.play === 'parelles') {
-      location.hash = '#memory';
-      return;
-    }
-    toast('Minijoc en estat prototip. Properament!');
-  }));
+  bindGameButtons();
 }
 
 function renderMemoryGame() {
@@ -1087,18 +1225,731 @@ function renderMinisantesAccess() {
   });
 }
 
-function gameCard(title, subtitle, icon, badge, prize, key) {
-  const theme = { castell: 'castle', parelles: 'pairs', confeti: 'confetti' }[key] || 'castle';
-  const accent = { castell: 'game-card-red', parelles: 'game-card-yellow', confeti: 'game-card-blue' }[key] || 'game-card-red';
-  return `<article class="game-card mini-game-card ${theme} ${accent}">
-    <div class="game-art" aria-hidden="true"><span>${icon}</span></div>
+function gameByKey(key) {
+  return MINISANTES_GAMES.find((game) => game.key === key);
+}
+
+function gameCard(game) {
+  const available = game.status === 'Disponible';
+  return `<article class="game-card mini-game-card ${game.theme} ${game.accent} ${available ? 'available' : 'soon-game'}">
+    <div class="game-art" aria-hidden="true"><span>${escapeHTML(game.icon)}</span></div>
     <div class="game-content">
-      <div class="game-badges"><span>${escapeHTML(badge)}</span><span>Guanya ${escapeHTML(prize)} ●</span></div>
-      <h3>${escapeHTML(title)}</h3>
-      <p>${escapeHTML(subtitle)}</p>
-      <button class="btn btn-primary primary-highlight btn-small" data-play="${key}">Jugar ▸</button>
+      <div class="game-badges"><span>${escapeHTML(game.badge)}</span><span>Guanya ${escapeHTML(game.prize)} ●</span></div>
+      <h3>${escapeHTML(game.title)}</h3>
+      <p>${escapeHTML(game.subtitle)}</p>
+      <button class="btn btn-primary primary-highlight btn-small" data-play="${escapeHTML(game.key)}" ${available ? '' : 'data-soon="1"'}>${available ? 'Jugar ▸' : 'Properament'}</button>
     </div>
   </article>`;
+}
+
+function renderAllGames() {
+  if (!state.user && !state.guest) return renderMinisantesAccess();
+  const available = MINISANTES_GAMES.filter((game) => game.status === 'Disponible').length;
+  app.innerHTML = `
+    ${pageTitle('Tots els jocs', 'Catàleg MiniSantes amb minijocs disponibles i propers reptes inspirats en Les Santes.', '<a class="btn btn-ghost" href="#minisantes">Tornar a MiniSantes</a>')}
+    ${state.guest ? '<div class="guest-banner mini-guest-banner info-highlight">👀 <strong>Mode convidat:</strong> pots jugar, però el progrés i les monedes no es guardaran.</div>' : ''}
+    <section class="games-catalog-head">
+      <article><strong>${MINISANTES_GAMES.length}</strong><span>jocs totals</span></article>
+      <article><strong>${available}</strong><span>disponibles</span></article>
+      <article><strong>${MINISANTES_GAMES.length - available}</strong><span>properament</span></article>
+    </section>
+    <section class="grid-3 game-grid mini-game-grid games-catalog">
+      ${MINISANTES_GAMES.map(gameCard).join('')}
+    </section>`;
+  bindGameButtons();
+}
+
+function bindGameButtons() {
+  app.querySelectorAll('[data-play]').forEach((btn) => btn.addEventListener('click', () => {
+    const key = btn.dataset.play;
+    if (key === 'castell') {
+      location.hash = '#castell';
+      return;
+    }
+    if (key === 'parelles') {
+      location.hash = '#memory';
+      return;
+    }
+    if (['gegants', 'correfoc', 'campanes'].includes(key)) {
+      location.hash = `#${key}`;
+      return;
+    }
+    const game = gameByKey(key);
+    toast(game ? `${game.title}: properament!` : 'Minijoc en estat prototip. Properament!');
+  }));
+}
+
+async function saveGameProgress(gameKey, finalScore, earnedCoins, message = '') {
+  if (!state.user || earnedCoins <= 0) return;
+  try {
+    const data = await api('/progress', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: state.user.id,
+        game_key: gameKey,
+        score: finalScore,
+        coins: earnedCoins
+      })
+    });
+    state.user = data.user;
+    state.inventory = data.inventory || [];
+    state.progress = data.progress || [];
+    updateHeader();
+    if (message) toast(message);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+function clearOfficialGame() {
+  if (typeof state.officialGameCleanup === 'function') {
+    state.officialGameCleanup();
+    state.officialGameCleanup = null;
+  }
+}
+
+function officialCoins(score, divisor) {
+  return Math.max(0, Math.min(260, Math.floor(score / divisor)));
+}
+
+function renderOfficialGameShell(config) {
+  if (!state.user && !state.guest) return renderMinisantesAccess();
+  clearOfficialGame();
+  app.innerHTML = `
+    <section class="official-game-shell ${config.theme}">
+      <div class="official-game">
+        <div class="official-confetti" id="officialConfetti"></div>
+        <div class="official-top">
+          <a class="official-back" href="#jocs" aria-label="Tornar a tots els jocs">←</a>
+          <div class="official-title">${config.titleHTML}</div>
+          <div class="official-coin">🪙 <b id="officialCoins">0</b></div>
+        </div>
+        ${config.body}
+        <div class="official-modal hidden" id="officialEndModal">
+          <div class="official-modal-card">
+            <h2>${escapeHTML(config.endTitle)}</h2>
+            <p id="officialEndText"></p>
+            <div class="official-row">
+              <button class="official-cta" id="officialReplay" type="button">Tornar a jugar</button>
+              <a class="official-cta secondary" href="#jocs">Sortir</a>
+            </div>
+          </div>
+        </div>
+        <div class="official-footer">IMATGES OFICIALS · LES SANTES · MATARÓ</div>
+      </div>
+    </section>`;
+  addOfficialConfetti(config.confetti || ['#ffd100', '#e10600', '#1e90ff', '#ff8a00']);
+  $('#officialReplay')?.addEventListener('click', config.replay);
+}
+
+function addOfficialConfetti(colors) {
+  const box = $('#officialConfetti');
+  if (!box) return;
+  box.innerHTML = colors.flatMap((color) => Array.from({ length: 8 }, () => {
+    const left = Math.random() * 100;
+    const delay = Math.random() * 8;
+    return `<i style="left:${left}%;animation-delay:${delay}s;background:${color}"></i>`;
+  })).join('');
+}
+
+function endOfficialGame({ score, coins, gameKey, text }) {
+  $('#officialEndText').innerHTML = text;
+  $('#officialEndModal')?.classList.remove('hidden');
+  if (state.user) saveGameProgress(gameKey, score, coins, `Has guanyat ${coins} monedes!`);
+  if (!state.user && state.guest) toast('Mode convidat: resultat no guardat');
+}
+
+function renderGegantsGame() {
+  renderOfficialGameShell({
+    theme: 'rhythm',
+    titleHTML: 'FES BALLAR<br><span>ELS GEGANTS</span>',
+    endTitle: 'Ball acabat!',
+    replay: renderGegantsGame,
+    confetti: ['#ffd100', '#e10600', '#1e90ff', '#22c55e'],
+    body: `
+      <div class="official-panel official-intro" id="officialIntro">
+        <span class="official-badge yellow">Robafaves · Família Gegant</span>
+        <h1>Repeteix la dansa!</h1>
+        <p class="official-help">Mira la seqüència i toca els personatges en el mateix ordre perquè Robafaves, la Geganta, la Toneta i en Maneló ballin com a Les Santes.</p>
+        <button class="official-cta" id="officialStart" type="button">Començar ▶</button>
+      </div>
+      <div class="official-stage giants-stage">
+        <div class="official-img giants-img"></div>
+        <div class="official-characters">
+          <div class="official-char">👑<small>Robafaves</small></div>
+          <div class="official-char">💃<small>Geganta</small></div>
+          <div class="official-char">🎀<small>Toneta</small></div>
+          <div class="official-char">🎩<small>Maneló</small></div>
+        </div>
+        <div class="official-floor">♫ Ball de Gegants · Les Santes ♫</div>
+      </div>
+      <div class="official-stats">
+        <div class="official-stat"><b id="officialRound">1</b><span>ronda</span></div>
+        <div class="official-stat"><b id="officialScore">0</b><span>punts</span></div>
+        <div class="official-stat"><b id="officialLives">3</b><span>vides</span></div>
+      </div>
+      <div class="official-pads">
+        <button class="official-pad red" data-pad="0"><b>👑</b><span>Robafaves</span></button>
+        <button class="official-pad yellow" data-pad="1"><b>💃</b><span>Geganta</span></button>
+        <button class="official-pad blue" data-pad="2"><b>🎀</b><span>Toneta</span></button>
+        <button class="official-pad green" data-pad="3"><b>🎩</b><span>Maneló</span></button>
+      </div>
+      <p class="official-help center" id="officialMessage">Prem començar i recorda la seqüència.</p>`
+  });
+
+  const pads = [...app.querySelectorAll('.official-pad')];
+  const chars = [...app.querySelectorAll('.official-char')];
+  let sequence = [], input = [], round = 1, score = 0, lives = 3, busy = false, ended = false;
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const update = () => {
+    $('#officialRound').textContent = round;
+    $('#officialScore').textContent = score;
+    $('#officialLives').textContent = lives;
+    $('#officialCoins').textContent = officialCoins(score, 10);
+  };
+  const dance = (n) => {
+    chars[n]?.classList.add('dance');
+    setTimeout(() => chars[n]?.classList.remove('dance'), 220);
+  };
+  async function showSeq() {
+    if (ended) return;
+    busy = true;
+    $('#officialMessage').textContent = 'Mira la dansa dels gegants...';
+    await wait(650);
+    for (const n of sequence) {
+      pads[n].classList.add('active');
+      dance(n);
+      await wait(560);
+      pads[n].classList.remove('active');
+      await wait(180);
+    }
+    input = [];
+    busy = false;
+    $('#officialMessage').textContent = 'Ara repeteix la dansa!';
+  }
+  const nextRound = () => {
+    sequence.push(Math.floor(Math.random() * 4));
+    showSeq();
+  };
+  const finish = () => {
+    ended = true;
+    endOfficialGame({
+      gameKey: 'gegants',
+      score,
+      coins: officialCoins(score, 10),
+      text: `Has fet <b>${money(score)}</b> punts i has guanyat <b>${officialCoins(score, 10)}</b> monedes.`
+    });
+  };
+  const fail = () => {
+    lives--;
+    $('#officialMessage').textContent = 'Ups! Aquest no era. Torna-ho a provar.';
+    update();
+    if (lives <= 0) finish();
+    else setTimeout(showSeq, 800);
+  };
+  pads.forEach((pad) => pad.addEventListener('click', () => {
+    if (busy || ended || !sequence.length) return;
+    const n = Number(pad.dataset.pad);
+    pad.classList.add('active');
+    setTimeout(() => pad.classList.remove('active'), 150);
+    input.push(n);
+    if (n !== sequence[input.length - 1]) return fail();
+    score += 10;
+    dance(n);
+    update();
+    if (input.length === sequence.length) {
+      round++;
+      score += 25;
+      update();
+      $('#officialMessage').textContent = 'Molt bé! Nova ronda!';
+      setTimeout(nextRound, 900);
+    }
+  }));
+  $('#officialStart')?.addEventListener('click', () => {
+    $('#officialIntro').classList.add('hidden');
+    sequence = [];
+    input = [];
+    round = 1;
+    score = 0;
+    lives = 3;
+    ended = false;
+    update();
+    nextRound();
+  });
+  state.officialGameCleanup = () => { ended = true; };
+  update();
+}
+
+function renderCampanesGame() {
+  renderOfficialGameShell({
+    theme: 'bells',
+    titleHTML: 'TOC DE<br><span>CAMPANES</span>',
+    endTitle: 'Toc final!',
+    replay: renderCampanesGame,
+    confetti: ['#ffd100', '#7c3aed', '#1e90ff', '#fff'],
+    body: `
+      <div class="official-bell-hero">
+        <div class="official-img bells-img"></div>
+        <div class="official-bigbell" id="officialBigbell">🔔</div>
+        <div class="official-soundwaves">)))</div>
+        <div class="official-hero-label">Basílica de Santa Maria · Toc tradicional</div>
+      </div>
+      <div class="official-stats">
+        <div class="official-stat"><b id="officialLevel">1</b><span>nivell</span></div>
+        <div class="official-stat"><b id="officialScore">0</b><span>punts</span></div>
+        <div class="official-stat"><b id="officialLives">3</b><span>vides</span></div>
+      </div>
+      <div class="official-panel" id="officialIntro">
+        <span class="official-badge yellow">Memòria · Santa Maria</span>
+        <p class="official-help">Observa la seqüència de campanes i repeteix-la. Cada ronda s’inspira en els tocs festius de Les Santes.</p>
+        <button class="official-cta" id="officialStart" type="button">Començar ▶</button>
+      </div>
+      <div class="official-bells-grid">
+        <button class="official-bell b1" data-bell="0">🔔<small>Santa</small></button>
+        <button class="official-bell b2" data-bell="1">🔔<small>Maria</small></button>
+        <button class="official-bell b3" data-bell="2">🔔<small>Juliana</small></button>
+        <button class="official-bell b4" data-bell="3">🔔<small>Semproniana</small></button>
+      </div>
+      <p class="official-help center" id="officialMessage">Prem començar per veure el primer toc.</p>`
+  });
+
+  const buttons = [...app.querySelectorAll('.official-bell')];
+  let seq = [], input = [], level = 1, score = 0, lives = 3, busy = false, ended = false;
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const update = () => {
+    $('#officialLevel').textContent = level;
+    $('#officialScore').textContent = score;
+    $('#officialLives').textContent = lives;
+    $('#officialCoins').textContent = officialCoins(score, 12);
+  };
+  const beep = (freq) => {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    gain.gain.value = 0.045;
+    osc.start();
+    setTimeout(() => {
+      osc.stop();
+      ctx.close();
+    }, 180);
+  };
+  const ring = (n) => {
+    buttons[n].classList.add('active');
+    $('#officialBigbell')?.classList.add('ring');
+    setTimeout(() => $('#officialBigbell')?.classList.remove('ring'), 180);
+    try { beep(260 + n * 90); } catch {}
+  };
+  async function playSeq() {
+    if (ended) return;
+    busy = true;
+    $('#officialMessage').textContent = 'Mira el toc de campanes...';
+    await wait(600);
+    for (const n of seq) {
+      ring(n);
+      await wait(600);
+      buttons[n].classList.remove('active');
+      await wait(240);
+    }
+    input = [];
+    busy = false;
+    $('#officialMessage').textContent = 'Ara repeteix el toc!';
+  }
+  const next = () => {
+    seq.push(Math.floor(Math.random() * 4));
+    playSeq();
+  };
+  const finish = () => {
+    ended = true;
+    endOfficialGame({
+      gameKey: 'campanes',
+      score,
+      coins: officialCoins(score, 12),
+      text: `Has arribat al nivell <b>${level}</b>, amb <b>${money(score)}</b> punts i <b>${officialCoins(score, 12)}</b> monedes.`
+    });
+  };
+  const fail = () => {
+    lives--;
+    $('#officialMessage').textContent = 'Aquest toc no era!';
+    update();
+    if (lives <= 0) finish();
+    else setTimeout(playSeq, 700);
+  };
+  buttons.forEach((button) => button.addEventListener('click', () => {
+    if (busy || ended || !seq.length) return;
+    const n = Number(button.dataset.bell);
+    ring(n);
+    setTimeout(() => button.classList.remove('active'), 180);
+    input.push(n);
+    if (n !== seq[input.length - 1]) return fail();
+    score += 12;
+    update();
+    if (input.length === seq.length) {
+      level++;
+      score += 30;
+      update();
+      $('#officialMessage').textContent = 'Molt bé! Nou toc!';
+      setTimeout(next, 850);
+    }
+  }));
+  $('#officialStart')?.addEventListener('click', () => {
+    $('#officialIntro').classList.add('hidden');
+    seq = [];
+    input = [];
+    level = 1;
+    score = 0;
+    lives = 3;
+    ended = false;
+    update();
+    next();
+  });
+  state.officialGameCleanup = () => { ended = true; };
+  update();
+}
+
+function renderCorrefocGame() {
+  renderOfficialGameShell({
+    theme: 'correfoc',
+    titleHTML: 'CORREFOC<br><span>SEGUR</span>',
+    endTitle: 'Correfoc acabat!',
+    replay: renderCorrefocGame,
+    body: `
+      <div class="official-stats">
+        <div class="official-stat"><b id="officialTime">30</b><span>temps</span></div>
+        <div class="official-stat"><b id="officialScore">0</b><span>punts</span></div>
+        <div class="official-stat"><b id="officialLives">3</b><span>vides</span></div>
+      </div>
+      <div class="official-arena" id="officialArena">
+        <div class="official-img correfoc-img"></div>
+        <div class="official-route"></div>
+        <div class="official-player" id="officialPlayer">🛡️</div>
+        <div class="official-hint" id="officialIntro">
+          <span class="official-badge yellow">Diablesses · Drac · Momerota</span>
+          <h1>Segueix el correfoc!</h1>
+          <p>Arrossega l’escut per esquivar espurnes i recollir gotes d’aigua. Inspirat en el foc festiu de Les Santes.</p>
+          <button class="official-cta" id="officialStart" type="button">Començar ▶</button>
+        </div>
+      </div>
+      <p class="official-help center" id="officialMessage">Evita 🔥 i recull 💧. Les espurnes van ràpid!</p>`
+  });
+
+  const arena = $('#officialArena');
+  const player = $('#officialPlayer');
+  let running = false, score = 0, lives = 3, time = 30, objects = [], timer = null, loop = null, last = 0, ended = false;
+  const update = () => {
+    $('#officialScore').textContent = score;
+    $('#officialLives').textContent = lives;
+    $('#officialTime').textContent = time;
+    $('#officialCoins').textContent = officialCoins(score, 15);
+  };
+  const pointerPos = (event) => {
+    const rect = arena.getBoundingClientRect();
+    const point = event.touches ? event.touches[0] : event;
+    return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+  };
+  const move = (event) => {
+    if (!running) return;
+    const p = pointerPos(event);
+    player.style.left = `${Math.max(35, Math.min(arena.clientWidth - 35, p.x))}px`;
+    player.style.top = `${Math.max(55, Math.min(arena.clientHeight - 55, p.y))}px`;
+    player.style.bottom = 'auto';
+    event.preventDefault();
+  };
+  const spawn = () => {
+    const good = Math.random() < 0.28;
+    const el = document.createElement('div');
+    el.className = good ? 'official-drop' : 'official-spark';
+    el.textContent = good ? '💧' : (Math.random() < 0.5 ? '🔥' : '💥');
+    el.dataset.good = good ? '1' : '0';
+    el.style.left = `${30 + Math.random() * (arena.clientWidth - 70)}px`;
+    el.style.top = '-45px';
+    arena.appendChild(el);
+    objects.push({ el, y: -45, speed: 2.5 + Math.random() * 2.8 + (30 - time) * 0.05, dead: false });
+  };
+  const collide = (a, b) => {
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    return !(ar.right < br.left || ar.left > br.right || ar.bottom < br.top || ar.top > br.bottom);
+  };
+  const finish = () => {
+    if (ended) return;
+    ended = true;
+    running = false;
+    clearInterval(timer);
+    cancelAnimationFrame(loop);
+    endOfficialGame({
+      gameKey: 'correfoc',
+      score,
+      coins: officialCoins(score, 15),
+      text: `Has aconseguit <b>${money(score)}</b> punts i <b>${officialCoins(score, 15)}</b> monedes.`
+    });
+  };
+  const tick = (t = 0) => {
+    if (!running) return;
+    if (t - last > 520) {
+      spawn();
+      last = t;
+    }
+    objects.forEach((obj) => {
+      obj.y += obj.speed;
+      obj.el.style.top = `${obj.y}px`;
+      if (collide(obj.el, player)) {
+        if (obj.el.dataset.good === '1') {
+          score += 25;
+          $('#officialMessage').textContent = 'Aigua recollida! +25';
+        } else {
+          lives--;
+          $('#officialMessage').textContent = 'Espurna! Perds una vida';
+          arena.animate([{ filter: 'brightness(1.7)' }, { filter: 'brightness(1)' }], { duration: 180 });
+        }
+        obj.el.remove();
+        obj.dead = true;
+        update();
+        if (lives <= 0) finish();
+      }
+      if (obj.y > arena.clientHeight + 50) {
+        obj.el.remove();
+        obj.dead = true;
+      }
+    });
+    objects = objects.filter((obj) => !obj.dead);
+    loop = requestAnimationFrame(tick);
+  };
+  $('#officialStart')?.addEventListener('click', () => {
+    $('#officialIntro').classList.add('hidden');
+    running = true;
+    update();
+    timer = setInterval(() => {
+      time--;
+      update();
+      if (time <= 0) finish();
+    }, 1000);
+    tick();
+  });
+  arena.addEventListener('mousemove', move);
+  arena.addEventListener('touchmove', move, { passive: false });
+  state.officialGameCleanup = () => {
+    ended = true;
+    running = false;
+    clearInterval(timer);
+    cancelAnimationFrame(loop);
+    objects.forEach((obj) => obj.el.remove());
+    objects = [];
+  };
+  update();
+}
+
+const AVATAR_SLOTS = [
+  { type: 'Roba', label: 'Roba', empty: 'Cap peça' },
+  { type: 'Accessoris', label: 'Accessoris', empty: 'Cap accessori' },
+  { type: 'Equipament', label: 'Equipament', empty: 'Cap equipament' },
+  { type: 'Efectes', label: 'Efectes', empty: 'Cap efecte' },
+  { type: 'Especial', label: 'Especial', empty: 'Cap especial' },
+  { type: 'Col·lecció', label: 'Col·lecció', empty: 'Cap insígnia' }
+];
+
+function equippedByType(items = state.inventory) {
+  return new Map(items.filter((item) => item.equipped).map((item) => [item.type, item]));
+}
+
+function renderAvatarLoadout(title = 'El teu personatge', subtitle = 'Aplica recompenses desbloquejades des de l’inventari.') {
+  const equipped = equippedByType();
+  const activeItems = [...equipped.values()];
+  return `<article class="card avatar-loadout">
+    <div class="avatar-stage">
+      <div class="avatar-character" aria-label="Avatar MiniSantes">
+        <span class="avatar-base">🧒</span>
+        ${activeItems.slice(0, 5).map((item, index) => `<span class="avatar-equipped-item avatar-pos-${index}">${item.image || '🎁'}</span>`).join('')}
+      </div>
+      <div>
+        <span class="eyebrow yellow">${escapeHTML(title)}</span>
+        <h3>${escapeHTML(state.user?.display_name || 'Convidat')}</h3>
+        <p>${escapeHTML(subtitle)}</p>
+      </div>
+    </div>
+    <div class="avatar-slots">
+      ${AVATAR_SLOTS.map((slot) => {
+        const item = equipped.get(slot.type);
+        return `<div class="avatar-slot ${item ? 'filled' : ''}">
+          <span>${item?.image || '＋'}</span>
+          <div><strong>${escapeHTML(slot.label)}</strong><small>${escapeHTML(item?.name || slot.empty)}</small></div>
+        </div>`;
+      }).join('')}
+    </div>
+  </article>`;
+}
+
+function renderCastleGame() {
+  if (!state.user && !state.guest) return renderMinisantesAccess();
+  clearInterval(state.castleTimer);
+  const game = {
+    active: false,
+    x: 50,
+    target: 50,
+    dir: 1,
+    speed: 0.55,
+    lives: 3,
+    score: 0,
+    tower: 0,
+    blocks: [],
+    saved: false
+  };
+
+  app.innerHTML = `
+    <section class="castle-shell">
+      <div class="castle-head">
+        <div>
+          <a class="btn btn-ghost btn-small" href="#jocs">← Tots els jocs</a>
+          <span class="eyebrow yellow">Disponible</span>
+          <h2>Construeix el Castell<span class="dot">.</span></h2>
+          <p class="lead">Mou el casteller, deixa’l caure i intenta alinear cada pis de la torre.</p>
+        </div>
+        <div class="castle-user ${state.guest ? 'guest' : ''}">
+          <strong>${state.user ? escapeHTML(state.user.display_name) : 'Convidat'}</strong>
+          <span>${state.user ? `${money(state.user.coins)} monedes` : 'El progrés no es guardarà'}</span>
+        </div>
+      </div>
+      <section class="castle-stage">
+        <div class="castle-hud">
+          <article><span>Vides</span><strong id="castleLives">3</strong></article>
+          <article><span>Punts</span><strong id="castleScore">0</strong></article>
+          <article><span>Torre</span><strong id="castleTowerCount">0</strong></article>
+          <article><span>Monedes</span><strong id="castleCoins">0</strong></article>
+        </div>
+        <div class="castle-playfield" id="castlePlayfield" tabindex="0" role="button" aria-label="Prem o toca per deixar caure el casteller">
+          <div class="castle-sky" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="castle-target" id="castleTarget" aria-hidden="true"></div>
+          <div class="castle-tower" id="castleTower" aria-hidden="true"></div>
+          <div class="castle-player" id="castlePlayer" aria-hidden="true"><span>🧍</span></div>
+          <div class="castle-ground" aria-hidden="true"></div>
+          <div class="castle-message" id="castleMessage">Prem començar per aixecar la torre.</div>
+          <div class="castle-overlay show" id="castleOverlay">
+            <div class="castle-panel">
+              <span>🏰</span>
+              <h3>Preparat?</h3>
+              <p>Quan el casteller passi pel centre, prem o toca per deixar-lo caure. Tens 3 vides.</p>
+              <button class="btn btn-primary primary-highlight" id="castleStart" type="button">Començar partida</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>`;
+
+  const el = (id) => document.getElementById(id);
+  const player = el('castlePlayer');
+  const target = el('castleTarget');
+  const tower = el('castleTower');
+  const overlay = el('castleOverlay');
+  const playfield = el('castlePlayfield');
+
+  function estimateCoins() {
+    return game.score > 0 ? Math.min(250, Math.round(game.score / 90) + game.tower * 8) : 0;
+  }
+
+  function updateCastleHUD() {
+    el('castleLives').textContent = '❤️'.repeat(game.lives) || '0';
+    el('castleScore').textContent = money(game.score);
+    el('castleTowerCount').textContent = game.tower;
+    el('castleCoins').textContent = estimateCoins();
+  }
+
+  function setMessage(text, good = true) {
+    const msg = el('castleMessage');
+    msg.textContent = text;
+    msg.classList.toggle('bad', !good);
+  }
+
+  function renderTowerBlocks() {
+    tower.innerHTML = game.blocks.map((block, index) => {
+      const width = Math.max(58, 112 - index * 4);
+      return `<i style="left:${block.x}%;bottom:${index * 29}px;width:${width}px"><span>🧍</span></i>`;
+    }).join('');
+  }
+
+  function tick() {
+    game.x += game.dir * game.speed;
+    if (game.x >= 92 || game.x <= 8) {
+      game.dir *= -1;
+      game.x = clamp(game.x, 8, 92);
+    }
+    player.style.left = `${game.x}%`;
+  }
+
+  function endGame(completed = false) {
+    game.active = false;
+    clearInterval(state.castleTimer);
+    const earnedCoins = estimateCoins();
+    overlay.innerHTML = `
+      <div class="castle-panel castle-result">
+        <span>${completed ? '🏆' : '🎯'}</span>
+        <h3>${completed ? 'Castell complet!' : 'Partida acabada'}</h3>
+        <div class="memory-result"><span>Puntuació</span><strong>${money(game.score)} pts</strong></div>
+        <div class="memory-result"><span>Pisos</span><strong>${game.tower}</strong></div>
+        <div class="memory-result"><span>Monedes</span><strong>${earnedCoins}</strong></div>
+        <p>${state.user ? 'Resultat guardat al teu perfil.' : 'Mode convidat: resultat no guardat.'}</p>
+        <button class="btn btn-primary primary-highlight" type="button" id="castleReplay">Tornar a jugar</button>
+        <a class="btn btn-yellow reward-highlight" href="#jocs">Veure tots els jocs</a>
+      </div>`;
+    overlay.classList.add('show');
+    el('castleReplay')?.addEventListener('click', () => renderCastleGame());
+    if (state.user && !game.saved) {
+      game.saved = true;
+      saveGameProgress('castell', game.score, earnedCoins, `Has guanyat ${earnedCoins} monedes!`);
+    }
+    if (!state.user && state.guest) toast('Mode convidat: resultat no guardat');
+  }
+
+  function dropCasteller() {
+    if (!game.active) return;
+    const diff = Math.abs(game.x - game.target);
+    const threshold = Math.max(6, 14 - game.tower * 0.65);
+    if (diff <= threshold) {
+      const precision = Math.max(0, Math.round((threshold - diff) * 12));
+      game.tower += 1;
+      game.score += 120 + game.tower * 35 + precision;
+      game.blocks.push({ x: game.x });
+      game.target = game.x;
+      game.speed = Math.min(1.35, game.speed + 0.075);
+      target.style.left = `${game.target}%`;
+      renderTowerBlocks();
+      updateCastleHUD();
+      setMessage(diff < 4 ? 'Perfecte! Pis molt ben alineat.' : 'Ben fet! La torre continua pujant.');
+      if (game.tower >= 10) endGame(true);
+      return;
+    }
+    game.lives -= 1;
+    updateCastleHUD();
+    setMessage('Ha caigut massa descentrat. Perds una vida.', false);
+    if (game.lives <= 0) endGame(false);
+  }
+
+  function startGame() {
+    game.active = true;
+    overlay.classList.remove('show');
+    setMessage('Toca la pantalla quan el casteller estigui alineat.');
+    updateCastleHUD();
+    playfield.focus({ preventScroll: true });
+    state.castleTimer = setInterval(tick, 16);
+  }
+
+  updateCastleHUD();
+  player.style.left = `${game.x}%`;
+  target.style.left = `${game.target}%`;
+  el('castleStart')?.addEventListener('click', startGame);
+  playfield?.addEventListener('click', (e) => {
+    if (e.target.closest('.castle-overlay')) return;
+    dropCasteller();
+  });
+  playfield?.addEventListener('keydown', (e) => {
+    if (!['Enter', ' '].includes(e.key)) return;
+    e.preventDefault();
+    if (game.active) dropCasteller();
+    else if (overlay.classList.contains('show')) el('castleStart')?.click();
+  });
 }
 
 function requireRegistered() {
@@ -1111,21 +1962,27 @@ function requireRegistered() {
 }
 
 function renderBotiga() {
-  if (!requireRegistered()) return;
-  const owned = new Set(state.inventory.map((item) => item.id));
+  const logged = Boolean(state.user);
+  if (!logged && !state.guest) return renderLogin();
+  const owned = new Map(state.inventory.map((item) => [item.id, item]));
+  const shopItems = logged ? state.rewards.filter((reward) => !owned.has(reward.id)) : state.rewards;
   app.innerHTML = `
-    ${pageTitle('Botiga', 'Recompenses carregades des de la base de dades.', '<a class="btn btn-ghost" href="#inventari">El meu inventari</a>')}
-    <section class="shop-grid">${state.rewards.map((r) => {
-      const isOwned = owned.has(r.id);
-      const canBuy = state.user.coins >= r.cost && !isOwned;
-      return `<article class="shop-card ${canBuy || isOwned ? 'reward-highlight' : 'locked'}">
-        <span class="eyebrow ${isOwned ? 'yellow' : ''}">${isOwned ? 'Obtingut' : escapeHTML(r.type)}</span>
+    ${pageTitle('Botiga', logged ? 'Compra recompenses noves amb les monedes guanyades als jocs.' : 'Inicia sessió per guardar recompenses.', '<a class="btn btn-ghost" href="#inventari">El meu inventari</a>')}
+    ${!logged ? '<div class="guest-banner mini-guest-banner info-highlight">👀 Inicia sessió per guardar recompenses</div>' : ''}
+    ${logged ? `<section class="shop-summary"><article><strong>${money(state.user.coins)}</strong><span>monedes disponibles</span></article><article><strong>${state.inventory.length}</strong><span>desbloquejades</span></article><article><strong>${shopItems.length}</strong><span>per comprar</span></article></section>` : ''}
+    <section class="shop-grid">${shopItems.length ? shopItems.map((r) => {
+      const canBuy = logged && state.user.coins >= r.cost;
+      const action = !logged
+        ? '<button class="btn btn-primary primary-highlight btn-small" disabled>Inicia sessió</button>'
+        : `<button class="btn btn-primary primary-highlight btn-small" data-buy="${escapeHTML(r.id)}" ${canBuy ? '' : 'disabled'}>${canBuy ? 'Comprar' : 'Falten monedes'}</button>`;
+      return `<article class="shop-card ${canBuy || !logged ? 'reward-highlight' : 'locked'}">
+        <span class="eyebrow">${escapeHTML(r.type)}</span>
         <div class="shop-img">${r.image || '🎁'}</div>
         <h3>${escapeHTML(r.name)}</h3><p>${escapeHTML(r.description || '')}</p>
         <div class="price">● ${money(r.cost)}</div>
-        <button class="btn btn-primary primary-highlight btn-small" data-buy="${escapeHTML(r.id)}" ${canBuy ? '' : 'disabled'}>${isOwned ? 'Ja és teu' : canBuy ? 'Desbloquejar' : 'Falten monedes'}</button>
+        ${action}
       </article>`;
-    }).join('')}</section>`;
+    }).join('') : '<div class="state-box reward-highlight"><h3>Ja tens totes les recompenses de la botiga</h3><p>Ves a l’inventari per aplicar-les al teu personatge.</p><a class="btn btn-primary primary-highlight" href="#inventari">Obrir inventari</a></div>'}</section>`;
   app.querySelectorAll('[data-buy]').forEach((btn) => btn.addEventListener('click', () => buyReward(btn.dataset.buy)));
 }
 
@@ -1136,34 +1993,102 @@ async function buyReward(rewardId) {
     state.inventory = data.inventory || [];
     state.progress = data.progress || [];
     updateHeader();
-    toast('Recompensa desbloquejada!');
+    toast('Recompensa comprada! Ara la pots aplicar a l’inventari.');
     renderBotiga();
   } catch (err) {
     toast(err.message);
   }
 }
 
+async function equipReward(rewardId, after = renderInventari) {
+  if (!state.user) {
+    toast('Inicia sessió per guardar recompenses');
+    return;
+  }
+  try {
+    const data = await api('/equip', { method: 'POST', body: JSON.stringify({ user_id: state.user.id, reward_id: rewardId }) });
+    state.user = data.user;
+    state.inventory = data.inventory || [];
+    state.progress = data.progress || [];
+    updateHeader();
+    toast('Recompensa aplicada al personatge!');
+    after();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
 function renderInventari() {
-  if (!requireRegistered()) return;
+  if (!state.user) {
+    if (state.guest) {
+      app.innerHTML = `
+        ${pageTitle('Inventari bloquejat', 'Inicia sessió per guardar recompenses.', '<a class="btn btn-primary primary-highlight" href="#login">Iniciar sessió</a><a class="btn btn-ghost" href="#minisantes">Tornar a MiniSantes</a>')}
+        <div class="state-box info-highlight"><h3>Inicia sessió per guardar recompenses</h3><p>En mode convidat pots jugar, però no pots comprar ni equipar objectes.</p></div>`;
+      return;
+    }
+    return renderLogin();
+  }
   app.innerHTML = `
-    ${pageTitle('Inventari', 'Premis desbloquejats del teu compte.', '<a class="btn btn-primary primary-highlight" href="#botiga">Anar a la botiga</a>')}
-    <section class="inventory-grid">
-      ${state.inventory.length ? state.inventory.map((r) => `<article class="inv-card reward-highlight ${r.equipped ? 'featured' : ''}"><span class="eyebrow ${r.equipped ? 'yellow' : ''}">${r.equipped ? 'Equipat' : 'Obtingut'}</span><div class="inv-art">${r.image || '🎁'}</div><h3>${escapeHTML(r.name)}</h3><p>${escapeHTML(r.description || '')}</p></article>`).join('') : '<div class="state-box"><h3>Encara no tens recompenses</h3><p>Visita la botiga per desbloquejar-ne.</p></div>'}
+    ${pageTitle('Inventari', 'Aquí apliques al personatge les recompenses que ja has desbloquejat.', '<a class="btn btn-primary primary-highlight" href="#botiga">Comprar més</a>')}
+    <section class="inventory-layout">
+      ${renderAvatarLoadout('Personatge', 'Tria una recompensa de cada tipus per vestir el teu avatar.')}
+      <div>
+        <div class="section-head compact-head"><h3>Recompenses desbloquejades</h3><span>${state.inventory.length} items</span></div>
+        <section class="inventory-grid owned-only">
+          ${state.inventory.length ? state.inventory.map((r) => `<article class="inv-card reward-highlight ${r.equipped ? 'featured' : ''}">
+            <span class="eyebrow ${r.equipped ? 'yellow' : ''}">${r.equipped ? 'Aplicat' : 'Desbloquejat'}</span>
+            <div class="inv-art">${r.image || '🎁'}</div>
+            <h3>${escapeHTML(r.name)}</h3>
+            <p>${escapeHTML(r.description || '')}</p>
+            <small>${escapeHTML(r.type)}</small>
+            <button class="btn ${r.equipped ? 'btn-yellow reward-highlight' : 'btn-primary primary-highlight'} btn-small" data-equip="${escapeHTML(r.id)}" ${r.equipped ? 'disabled' : ''}>${r.equipped ? 'Aplicat' : 'Aplicar al personatge'}</button>
+          </article>`).join('') : '<div class="state-box"><h3>Encara no tens recompenses</h3><p>Compra’n a la botiga o juga per guanyar monedes.</p><a class="btn btn-primary primary-highlight" href="#botiga">Anar a la botiga</a></div>'}
+        </section>
+      </div>
     </section>`;
+  app.querySelectorAll('[data-equip]').forEach((btn) => btn.addEventListener('click', () => equipReward(btn.dataset.equip)));
 }
 
 function renderPerfil() {
-  if (!requireRegistered()) return;
+  if (!state.user) {
+    if (state.guest) {
+      app.innerHTML = `
+        ${pageTitle('Perfil bloquejat', 'Estàs navegant com a convidat.', '<a class="btn btn-primary primary-highlight" href="#login">Iniciar sessió</a><a class="btn btn-ghost" href="#minisantes">Tornar a MiniSantes</a>')}
+        <section class="profile-locked info-highlight">
+          <div class="big-avatar">👀</div>
+          <div><h3>Perfil no disponible en mode convidat</h3><p>Inicia sessió per guardar monedes, recompenses equipades, inventari i progrés dels jocs.</p></div>
+        </section>`;
+      return;
+    }
+    return renderLogin();
+  }
   const totalCoins = state.progress.reduce((sum, item) => sum + item.coins_earned, 0);
+  const equipped = state.inventory.filter((item) => item.equipped);
+  const recentGames = [...state.progress].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 4);
+  const nextLevelCoins = Math.max(1000, (state.user.level + 1) * 2500);
+  const progressPct = clamp(Math.round((state.user.coins / nextLevelCoins) * 100), 6, 100);
   app.innerHTML = `
     ${pageTitle('Perfil', 'Personalitza el teu perfil i consulta el teu progrés.', '<button class="btn btn-ghost" id="logoutBtn">Tancar sessió</button>')}
-    <section class="profile-top">
-      <article class="card profile-card"><div class="profile-row"><div class="big-avatar">🧒</div><div><h2>${escapeHTML(state.user.display_name)}</h2><span class="eyebrow yellow">Nivell ${state.user.level}</span><p class="coin-line reward-highlight">● ${money(state.user.coins)} <span>monedes</span></p></div></div></article>
+    <section class="profile-premium">
+      <article class="card profile-card profile-identity">
+        <div class="profile-row">
+          <div class="big-avatar">🧒</div>
+          <div>
+            <span class="eyebrow yellow">Nivell ${state.user.level}</span>
+            <h2>${escapeHTML(state.user.display_name)}</h2>
+            <p class="coin-line reward-highlight">● ${money(state.user.coins)} <span>monedes disponibles</span></p>
+          </div>
+        </div>
+        <div class="profile-level-bar"><span style="width:${progressPct}%"></span></div>
+        <small>${progressPct}% cap al proper nivell</small>
+      </article>
+      ${renderAvatarLoadout('Personatge equipat', 'Les recompenses aplicades es veuen aquí. Canvia-les des de l’inventari.')}
       <article class="card profile-card"><h3>Resum Minisantes</h3><div class="quick-stats"><div class="stat"><strong>${state.inventory.length}</strong><span>premis</span></div><div class="stat"><strong>${state.progress.length}</strong><span>jocs</span></div><div class="stat"><strong>${money(totalCoins)}</strong><span>guanyades</span></div></div></article>
     </section>
     <section class="section settings-layout">
-      <div><h3>Progrés de minijocs</h3><div class="card settings-list">${state.progress.map((p) => activityItem(gameName(p.game_key), `Millor puntuació: ${money(p.best_score)}`, `${money(p.coins_earned)} monedes`)).join('')}</div></div>
-      <div><h3>Accés ràpid</h3><div class="quick-actions"><a class="quick-action" href="#botiga"><span>🏪</span><div><strong>Botiga</strong><p>Compra recompenses</p></div></a><a class="quick-action" href="#inventari"><span>🎒</span><div><strong>Inventari</strong><p>Consulta premis</p></div></a></div></div>
+      <div><h3>Últims jocs jugats</h3><div class="card settings-list">${recentGames.length ? recentGames.map((p) => activityItem(gameName(p.game_key), `Millor puntuació: ${money(p.best_score)}`, `${money(p.coins_earned)} monedes`)).join('') : '<div class="settings-item"><div><strong>Sense partides</strong><p>Juga a MiniSantes per omplir aquest historial.</p></div><span>0</span></div>'}</div></div>
+      <div><h3>Configuració visual</h3><div class="profile-settings-grid"><article><span>🎨</span><strong>Tema Festa</strong><p>Actiu</p></article><article><span>🧒</span><strong>Personatge</strong><p>Equipable</p></article><article><span>✨</span><strong>Aplicades</strong><p>${equipped.length}</p></article></div></div>
+      <div><h3>Accés ràpid</h3><div class="quick-actions"><a class="quick-action" href="#botiga"><span>🏪</span><div><strong>Botiga</strong><p>Compra recompenses</p></div></a><a class="quick-action" href="#inventari"><span>🎒</span><div><strong>Inventari</strong><p>Personalitza avatar</p></div></a><a class="quick-action" href="#jocs"><span>🎮</span><div><strong>Tots els jocs</strong><p>Obre el catàleg</p></div></a></div></div>
     </section>`;
   $('#logoutBtn')?.addEventListener('click', () => {
     localStorage.removeItem(STORAGE_SESSION);
@@ -1177,7 +2102,14 @@ function renderPerfil() {
 }
 
 function gameName(key) {
-  return { castell: 'Construeix el castell', parelles: 'Troba les parelles', confeti: 'Atrapa el confeti' }[key] || key;
+  return {
+    castell: 'Construeix el Castell',
+    parelles: 'Troba les Parelles',
+    confeti: 'Atrapa el Confeti',
+    gegants: 'Fes Ballar els Gegants',
+    correfoc: 'Correfoc Segur',
+    campanes: 'Toc de Campanes'
+  }[key] || key;
 }
 
 function activityItem(title, desc, right) {
@@ -1228,7 +2160,7 @@ function setupChrome() {
     if (e.key === 'Escape') closeSearch();
   });
   $('#userButton').addEventListener('click', () => {
-    location.hash = state.user ? '#perfil' : '#login';
+    location.hash = (state.user || state.guest) ? '#perfil' : '#login';
   });
   $('#mobileMenuBtn').addEventListener('click', () => $('#mobileMenu').classList.toggle('open'));
   document.querySelectorAll('#mobileMenu a').forEach((a) => a.addEventListener('click', () => $('#mobileMenu').classList.remove('open')));
@@ -1265,6 +2197,8 @@ function router() {
   }
   clearInterval(state.memoryTimer);
   clearInterval(state.memoryPreviewTimer);
+  clearInterval(state.castleTimer);
+  clearOfficialGame();
   $('#mobileMenu')?.classList.remove('open');
   updateHeader();
   if (state.loading) {
@@ -1280,15 +2214,28 @@ function router() {
     programa: renderPrograma,
     mapa: renderMapa,
     minisantes: renderMinisantes,
+    jocs: renderAllGames,
+    castell: renderCastleGame,
+    gegants: renderGegantsGame,
+    correfoc: renderCorrefocGame,
+    campanes: renderCampanesGame,
     memory: renderMemoryGame,
     botiga: renderBotiga,
     inventari: renderInventari,
     perfil: renderPerfil,
     login: renderLogin
   };
+  if (route === 'destacats' || route === 'agenda') {
+    location.hash = '#home/avui';
+    return;
+  }
   if (route === 'acte') renderDetail(id);
   else (routes[route] || renderHome)();
-  window.scrollTo(0, 0);
+  if (route === 'home' && id === 'avui') {
+    setTimeout(() => $('#homeToday')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40);
+  } else {
+    window.scrollTo(0, 0);
+  }
   app.focus({ preventScroll: true });
 }
 

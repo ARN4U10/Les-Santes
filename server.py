@@ -305,7 +305,14 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                     conn.executemany(
                         "INSERT OR IGNORE INTO game_progress(user_id, game_key, best_score, coins_earned) VALUES (?, ?, 0, 0)",
-                        [(cur.lastrowid, "castell"), (cur.lastrowid, "parelles"), (cur.lastrowid, "confeti")],
+                        [
+                            (cur.lastrowid, "castell"),
+                            (cur.lastrowid, "parelles"),
+                            (cur.lastrowid, "confeti"),
+                            (cur.lastrowid, "gegants"),
+                            (cur.lastrowid, "correfoc"),
+                            (cur.lastrowid, "campanes"),
+                        ],
                     )
                     return self.send_json(profile_payload(conn, cur.lastrowid), HTTPStatus.CREATED)
 
@@ -328,12 +335,37 @@ class Handler(SimpleHTTPRequestHandler):
                     conn.execute("INSERT INTO user_rewards(user_id, reward_id) VALUES (?, ?)", (user_id, reward_id))
                     return self.send_json(profile_payload(conn, user_id))
 
+                if parsed.path == "/api/equip":
+                    user_id = int(payload.get("user_id", 0))
+                    reward_id = payload.get("reward_id", "")
+                    reward = conn.execute("SELECT * FROM rewards WHERE id = ?", (reward_id,)).fetchone()
+                    owned = conn.execute(
+                        "SELECT id FROM user_rewards WHERE user_id = ? AND reward_id = ?",
+                        (user_id, reward_id),
+                    ).fetchone()
+                    if not reward or not owned:
+                        return self.send_json({"error": "Recompensa no desbloquejada"}, HTTPStatus.NOT_FOUND)
+                    conn.execute(
+                        """
+                        UPDATE user_rewards
+                        SET equipped = 0
+                        WHERE user_id = ?
+                          AND reward_id IN (SELECT id FROM rewards WHERE type = ?)
+                        """,
+                        (user_id, reward["type"]),
+                    )
+                    conn.execute(
+                        "UPDATE user_rewards SET equipped = 1 WHERE user_id = ? AND reward_id = ?",
+                        (user_id, reward_id),
+                    )
+                    return self.send_json(profile_payload(conn, user_id))
+
                 if parsed.path == "/api/progress":
                     user_id = int(payload.get("user_id", 0))
                     game_key = str(payload.get("game_key", "")).strip()
                     score = max(0, int(payload.get("score", 0)))
                     coins = max(0, min(500, int(payload.get("coins", 0))))
-                    if game_key not in {"castell", "parelles", "confeti"}:
+                    if game_key not in {"castell", "parelles", "confeti", "gegants", "correfoc", "campanes"}:
                         return self.send_json({"error": "Minijoc no valid"}, HTTPStatus.BAD_REQUEST)
                     user = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
                     if not user:

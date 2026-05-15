@@ -1,6 +1,6 @@
 # Les Santes 2026 · Minisantes
 
-Web final presentable per a classe: programa públic, mapa d’actes de Mataró i zona Minisantes amb login o mode convidat.
+Web final presentable per a classe: programa públic, secció d’actes destacats a la portada, mapa d’actes de Mataró i zona Minisantes amb login o mode convidat.
 
 ## Com executar
 
@@ -28,14 +28,21 @@ També es pot entrar a Minisantes com a convidat. En aquest mode es veuen els mi
 ## Rutes principals
 
 - `#home`: portada pública
+- `#home/avui`: baixa a la secció d’actes d’avui o destacats propers de la Home
 - `#programa`: llistat públic d’actes amb filtres i cerca
 - `#mapa`: mapa Leaflet amb pins reals segons `location_point`
 - `#acte/{id}`: detall públic d’un acte
-- `#minisantes`: accés Minisantes, mode convidat i minijocs visuals
+- `#minisantes`: accés Minisantes, mode convidat i jocs destacats
+- `#jocs`: catàleg amb tots els jocs de MiniSantes
+- `#castell`: minijoc funcional Construeix el Castell
+- `#memory`: minijoc Troba les parelles
+- `#gegants`: minijoc funcional Fes Ballar els Gegants
+- `#correfoc`: minijoc funcional Correfoc Segur
+- `#campanes`: minijoc funcional Toc de Campanes
 - `#login`: login o registre
-- `#perfil`: dades d’usuari registrat
-- `#botiga`: recompenses de la base de dades
-- `#inventari`: recompenses desbloquejades
+- `#perfil`: perfil premium amb nivell, monedes, progrés i personatge equipat
+- `#botiga`: recompenses pendents de comprar, amb compra bloquejada en mode convidat
+- `#inventari`: recompenses desbloquejades i personalització del personatge
 
 ## Base de dades
 
@@ -43,7 +50,7 @@ També es pot entrar a Minisantes com a convidat. En aquest mode es veuen els mi
 
 - `users`: compte, monedes, nivell i data de creació
 - `rewards`: premis disponibles a la botiga
-- `user_rewards`: inventari de cada usuari
+- `user_rewards`: inventari de cada usuari i estat `equipped`
 - `game_progress`: progrés dels minijocs
 - `events`: actes importats del JSON oficial 2025
 
@@ -58,6 +65,17 @@ El fitxer `database.sql` documenta el mateix esquema.
 - `POST /api/login`
 - `POST /api/register`
 - `POST /api/buy`
+- `POST /api/equip`
+- `POST /api/progress`
+
+## Canvis recents
+
+- El botó `Què passa avui?` porta a `#home/avui`, la secció de la Home que hi ha just sota el hero amb actes del dia o destacats propers.
+- El botó `Com arribar` del detall obre Google Maps amb ruta a les coordenades de l’acte; si no hi ha permisos de geolocalització, obre igual el destí.
+- `Construeix el Castell` és jugable amb 3 vides, puntuació, monedes finals i guardat de progrés per a usuaris registrats.
+- El catàleg de jocs integra `Fes Ballar els Gegants`, `Correfoc Segur` i `Toc de Campanes` com a minijocs funcionals.
+- La botiga serveix per comprar recompenses noves; l’inventari serveix per aplicar-les al personatge, amb un sol objecte equipat per tipus.
+- El perfil mostra avatar/personatge, nivell, monedes, progrés, recompenses aplicades i últims jocs jugats; en mode convidat queda bloquejat amb missatge clar.
 
 ## Dependències
 
