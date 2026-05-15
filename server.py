@@ -338,6 +338,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if parsed.path == "/api/equip":
                     user_id = int(payload.get("user_id", 0))
                     reward_id = payload.get("reward_id", "")
+                    unequip = bool(payload.get("unequip", False))
                     reward = conn.execute("SELECT * FROM rewards WHERE id = ?", (reward_id,)).fetchone()
                     owned = conn.execute(
                         "SELECT id FROM user_rewards WHERE user_id = ? AND reward_id = ?",
@@ -345,6 +346,12 @@ class Handler(SimpleHTTPRequestHandler):
                     ).fetchone()
                     if not reward or not owned:
                         return self.send_json({"error": "Recompensa no desbloquejada"}, HTTPStatus.NOT_FOUND)
+                    if unequip:
+                        conn.execute(
+                            "UPDATE user_rewards SET equipped = 0 WHERE user_id = ? AND reward_id = ?",
+                            (user_id, reward_id),
+                        )
+                        return self.send_json(profile_payload(conn, user_id))
                     conn.execute(
                         """
                         UPDATE user_rewards

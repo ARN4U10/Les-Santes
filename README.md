@@ -97,3 +97,10 @@ database.sql
 data/actes_santes_2025_pia.json
 data/users.example.json
 ```
+
+
+## Organització professional del codi
+
+S’ha afegit documentació a `docs/ARCHITECTURE.md` amb l’estructura del projecte i el funcionament de la BBDD.
+
+La pantalla de perfil ara mostra un personatge MiniSantes que es vesteix dinàmicament segons les recompenses equipades a l’inventari. La lògica de compra/equipament continua depenent de SQLite i de les rutes `/api/buy` i `/api/equip`.

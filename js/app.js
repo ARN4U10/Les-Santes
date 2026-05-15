@@ -1756,15 +1756,15 @@ function equippedByType(items = state.inventory) {
   return new Map(items.filter((item) => item.equipped).map((item) => [item.type, item]));
 }
 
+function rewardClass(item) {
+  return item?.id ? `item-${String(item.id).replace(/[^a-z0-9-]/gi, '')}` : '';
+}
+
 function renderAvatarLoadout(title = 'El teu personatge', subtitle = 'Aplica recompenses desbloquejades des de l’inventari.') {
   const equipped = equippedByType();
-  const activeItems = [...equipped.values()];
   return `<article class="card avatar-loadout">
     <div class="avatar-stage">
-      <div class="avatar-character" aria-label="Avatar MiniSantes">
-        <span class="avatar-base">🧒</span>
-        ${activeItems.slice(0, 5).map((item, index) => `<span class="avatar-equipped-item avatar-pos-${index}">${item.image || '🎁'}</span>`).join('')}
-      </div>
+      ${renderCharacterPreview('compact')}
       <div>
         <span class="eyebrow yellow">${escapeHTML(title)}</span>
         <h3>${escapeHTML(state.user?.display_name || 'Convidat')}</h3>
@@ -1781,6 +1781,36 @@ function renderAvatarLoadout(title = 'El teu personatge', subtitle = 'Aplica rec
       }).join('')}
     </div>
   </article>`;
+}
+
+function renderCharacterPreview(size = 'large') {
+  const equipped = equippedByType();
+  const slots = {
+    roba: equipped.get('Roba'),
+    accessoris: equipped.get('Accessoris'),
+    equipament: equipped.get('Equipament'),
+    efectes: equipped.get('Efectes'),
+    especial: equipped.get('Especial'),
+    colleccio: equipped.get('Col·lecció')
+  };
+  const title = state.user?.display_name || 'Convidat';
+  const skinClass = slots.especial?.id === 'pell-or' ? 'skin-gold' : '';
+  const outfitClass = !slots.roba && !slots.equipament ? 'no-outfit' : '';
+  const specialLayer = slots.especial && slots.especial.id !== 'pell-or'
+    ? `<span class="character-layer character-special ${rewardClass(slots.especial)}" title="${escapeHTML(slots.especial.name)}">${slots.especial.image}</span>`
+    : '';
+  return `<div class="character-preview character-preview-${size}" aria-label="Personatge MiniSantes de ${escapeHTML(title)}">
+    <div class="character-aura" aria-hidden="true"></div>
+    <div class="character-base-figure ${skinClass} ${outfitClass}">
+      <span class="character-head">🧒</span>
+      ${slots.roba ? `<span class="character-body equipped" title="${escapeHTML(slots.roba.name)}">${slots.roba.image || '👕'}</span>` : ''}
+      ${slots.equipament ? `<span class="character-legs equipped" title="${escapeHTML(slots.equipament.name)}">${slots.equipament.image || '👟'}</span>` : ''}
+      ${slots.accessoris ? `<span class="character-layer character-accessory ${rewardClass(slots.accessoris)}" title="${escapeHTML(slots.accessoris.name)}">${slots.accessoris.image}</span>` : ''}
+      ${specialLayer}
+      ${slots.efectes ? `<span class="character-layer character-effect ${rewardClass(slots.efectes)}" title="${escapeHTML(slots.efectes.name)}">${slots.efectes.image}</span>` : ''}
+      ${slots.colleccio ? `<span class="character-layer character-collection ${rewardClass(slots.colleccio)}" title="${escapeHTML(slots.colleccio.name)}">${slots.colleccio.image}</span>` : ''}
+    </div>
+  </div>`;
 }
 
 function renderCastleGame() {
@@ -2018,6 +2048,24 @@ async function equipReward(rewardId, after = renderInventari) {
   }
 }
 
+async function unequipReward(rewardId, after = renderInventari) {
+  if (!state.user) {
+    toast('Inicia sessió per guardar recompenses');
+    return;
+  }
+  try {
+    const data = await api('/equip', { method: 'POST', body: JSON.stringify({ user_id: state.user.id, reward_id: rewardId, unequip: true }) });
+    state.user = data.user;
+    state.inventory = data.inventory || [];
+    state.progress = data.progress || [];
+    updateHeader();
+    toast('Recompensa retirada del personatge');
+    after();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
 function renderInventari() {
   if (!state.user) {
     if (state.guest) {
@@ -2041,12 +2089,13 @@ function renderInventari() {
             <h3>${escapeHTML(r.name)}</h3>
             <p>${escapeHTML(r.description || '')}</p>
             <small>${escapeHTML(r.type)}</small>
-            <button class="btn ${r.equipped ? 'btn-yellow reward-highlight' : 'btn-primary primary-highlight'} btn-small" data-equip="${escapeHTML(r.id)}" ${r.equipped ? 'disabled' : ''}>${r.equipped ? 'Aplicat' : 'Aplicar al personatge'}</button>
+            <button class="btn ${r.equipped ? 'btn-ghost' : 'btn-primary primary-highlight'} btn-small" ${r.equipped ? `data-unequip="${escapeHTML(r.id)}"` : `data-equip="${escapeHTML(r.id)}"`}>${r.equipped ? 'Treure del personatge' : 'Aplicar al personatge'}</button>
           </article>`).join('') : '<div class="state-box"><h3>Encara no tens recompenses</h3><p>Compra’n a la botiga o juga per guanyar monedes.</p><a class="btn btn-primary primary-highlight" href="#botiga">Anar a la botiga</a></div>'}
         </section>
       </div>
     </section>`;
   app.querySelectorAll('[data-equip]').forEach((btn) => btn.addEventListener('click', () => equipReward(btn.dataset.equip)));
+  app.querySelectorAll('[data-unequip]').forEach((btn) => btn.addEventListener('click', () => unequipReward(btn.dataset.unequip)));
 }
 
 function renderPerfil() {
@@ -2067,38 +2116,63 @@ function renderPerfil() {
   const recentGames = [...state.progress].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 4);
   const nextLevelCoins = Math.max(1000, (state.user.level + 1) * 2500);
   const progressPct = clamp(Math.round((state.user.coins / nextLevelCoins) * 100), 6, 100);
+  const equippedBySlot = equippedByType();
   app.innerHTML = `
-    ${pageTitle('Perfil', 'Personalitza el teu perfil i consulta el teu progrés.', '<button class="btn btn-ghost" id="logoutBtn">Tancar sessió</button>')}
-    <section class="profile-premium">
-      <article class="card profile-card profile-identity">
-        <div class="profile-row">
-          <div class="big-avatar">🧒</div>
-          <div>
-            <span class="eyebrow yellow">Nivell ${state.user.level}</span>
-            <h2>${escapeHTML(state.user.display_name)}</h2>
-            <p class="coin-line reward-highlight">● ${money(state.user.coins)} <span>monedes disponibles</span></p>
-          </div>
-        </div>
+    ${pageTitle('Perfil', 'Personalitza el teu personatge, consulta el progrés i gestiona les recompenses.', '<button class="btn btn-ghost" id="logoutBtn">Tancar sessió</button>')}
+    <section class="profile-premium profile-dashboard">
+      <aside class="card profile-card profile-identity profile-side-panel">
+        <div class="profile-mini-avatar">${renderCharacterPreview('compact')}</div>
+        <span class="eyebrow yellow">Nivell ${state.user.level}</span>
+        <h2>${escapeHTML(state.user.display_name)}</h2>
+        <p class="coin-line reward-highlight">● ${money(state.user.coins)} <span>monedes</span></p>
         <div class="profile-level-bar"><span style="width:${progressPct}%"></span></div>
         <small>${progressPct}% cap al proper nivell</small>
+        <div class="profile-character-actions">
+          <a class="btn btn-primary primary-highlight" href="#inventari">Canviar outfit</a>
+          <a class="btn btn-yellow reward-highlight" href="#botiga">Guanyar premis</a>
+        </div>
+      </aside>
+      <article class="profile-character-card profile-avatar-focus" aria-label="Avatar equipat">
+        <div class="profile-character-showcase">
+          <span class="profile-particle particle-one" aria-hidden="true"></span>
+          <span class="profile-particle particle-two" aria-hidden="true"></span>
+          <span class="profile-particle particle-three" aria-hidden="true"></span>
+          ${renderCharacterPreview('hero')}
+          <p>El teu avatar evoluciona amb els objectes equipats</p>
+        </div>
       </article>
-      ${renderAvatarLoadout('Personatge equipat', 'Les recompenses aplicades es veuen aquí. Canvia-les des de l’inventari.')}
-      <article class="card profile-card"><h3>Resum Minisantes</h3><div class="quick-stats"><div class="stat"><strong>${state.inventory.length}</strong><span>premis</span></div><div class="stat"><strong>${state.progress.length}</strong><span>jocs</span></div><div class="stat"><strong>${money(totalCoins)}</strong><span>guanyades</span></div></div></article>
-    </section>
-    <section class="section settings-layout">
-      <div><h3>Últims jocs jugats</h3><div class="card settings-list">${recentGames.length ? recentGames.map((p) => activityItem(gameName(p.game_key), `Millor puntuació: ${money(p.best_score)}`, `${money(p.coins_earned)} monedes`)).join('') : '<div class="settings-item"><div><strong>Sense partides</strong><p>Juga a MiniSantes per omplir aquest historial.</p></div><span>0</span></div>'}</div></div>
-      <div><h3>Configuració visual</h3><div class="profile-settings-grid"><article><span>🎨</span><strong>Tema Festa</strong><p>Actiu</p></article><article><span>🧒</span><strong>Personatge</strong><p>Equipable</p></article><article><span>✨</span><strong>Aplicades</strong><p>${equipped.length}</p></article></div></div>
-      <div><h3>Accés ràpid</h3><div class="quick-actions"><a class="quick-action" href="#botiga"><span>🏪</span><div><strong>Botiga</strong><p>Compra recompenses</p></div></a><a class="quick-action" href="#inventari"><span>🎒</span><div><strong>Inventari</strong><p>Personalitza avatar</p></div></a><a class="quick-action" href="#jocs"><span>🎮</span><div><strong>Tots els jocs</strong><p>Obre el catàleg</p></div></a></div></div>
+      <aside class="card profile-card profile-right-panel">
+        <div class="section-head compact-head"><h3>Equipament aplicat</h3><span>${equipped.length}/${AVATAR_SLOTS.length}</span></div>
+        <div class="profile-slot-list">
+          ${AVATAR_SLOTS.map((slot) => {
+            const item = equippedBySlot.get(slot.type);
+            return `<div class="avatar-slot ${item ? 'filled' : ''}">
+              <span>${item?.image || '＋'}</span>
+              <div><strong>${escapeHTML(slot.label)}</strong><small>${escapeHTML(item?.name || slot.empty)}</small></div>
+              ${item ? `<button class="slot-remove" type="button" data-unequip="${escapeHTML(item.id)}" aria-label="Treure ${escapeHTML(item.name)}">Treure</button>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="profile-summary-compact">
+          <h3>Resum Minisantes</h3>
+          <div class="quick-stats"><div class="stat"><strong>${state.inventory.length}</strong><span>premis</span></div><div class="stat"><strong>${state.progress.length}</strong><span>jocs</span></div><div class="stat"><strong>${money(totalCoins)}</strong><span>guanyades</span></div></div>
+        </div>
+        <div class="profile-recent-compact">
+          <h3>Últims jocs</h3>
+          <div class="settings-list">${recentGames.length ? recentGames.map((p) => activityItem(gameName(p.game_key), `Millor puntuació: ${money(p.best_score)}`, `${money(p.coins_earned)} monedes`)).join('') : '<div class="settings-item"><div><strong>Sense partides</strong><p>Juga a MiniSantes per omplir aquest historial.</p></div><span>0</span></div>'}</div>
+        </div>
+      </aside>
     </section>`;
   $('#logoutBtn')?.addEventListener('click', () => {
     localStorage.removeItem(STORAGE_SESSION);
     state.user = null;
     state.inventory = [];
-    state.progress = [];
+      state.progress = [];
     updateHeader();
     toast('Sessió tancada');
     location.hash = '#home';
   });
+  app.querySelectorAll('[data-unequip]').forEach((btn) => btn.addEventListener('click', () => unequipReward(btn.dataset.unequip, renderPerfil)));
 }
 
 function gameName(key) {
