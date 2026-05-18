@@ -2741,6 +2741,13 @@ function setupChrome() {
   });
   $('#mobileMenuBtn').addEventListener('click', () => $('#mobileMenu').classList.toggle('open'));
   document.querySelectorAll('#mobileMenu a').forEach((a) => a.addEventListener('click', () => $('#mobileMenu').classList.remove('open')));
+  window.addEventListener('resize', () => {
+    clearTimeout(setupChrome.resizeTimer);
+    setupChrome.resizeTimer = setTimeout(() => {
+      state.map?.invalidateSize?.(true);
+      state.detailMap?.invalidateSize?.(true);
+    }, 180);
+  });
   window.toast = toast;
 }
 

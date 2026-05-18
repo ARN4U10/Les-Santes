@@ -7052,3 +7052,799 @@ body::after {
   .profile-avatar-focus .character-collection { left: 72px; bottom: 126px; }
   .profile-avatar-focus .character-effect.item-confeti { right: 34px; bottom: 140px; }
 }
+
+/* =========================================================
+   Responsive final pass
+   ========================================================= */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img,
+svg,
+canvas,
+video,
+iframe {
+  max-width: 100%;
+}
+
+.app-shell,
+.site-footer,
+.page-title,
+.section,
+.card,
+.side-panel,
+.event-card,
+.map-event-card,
+.shop-card,
+.inv-card,
+.profile-card,
+.content-card,
+.mini-game-card,
+.mini-status-card,
+.profile-avatar-focus {
+  min-width: 0;
+}
+
+.app-shell {
+  width: min(var(--max), 100%);
+}
+
+.site-header {
+  width: 100%;
+}
+
+.header-actions {
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.coin-pill strong,
+.main-nav a,
+.btn,
+.chip,
+.map-reset,
+.mini-pill-link {
+  white-space: nowrap;
+}
+
+.event-title,
+.map-event-card strong,
+.game-content h3,
+.profile-side-panel h2,
+.settings-item strong,
+.avatar-slot strong {
+  overflow-wrap: anywhere;
+}
+
+.home-hero h1,
+.mini-hero-copy h1,
+.detail-title,
+.page-title h2 {
+  font-size: clamp(2.35rem, 8vw, 5.8rem);
+}
+
+.filters,
+.map-card-final .map-toolbar,
+.mini-toolbar {
+  scrollbar-width: thin;
+}
+
+.filters::-webkit-scrollbar,
+.map-card-final .map-toolbar::-webkit-scrollbar,
+.mini-toolbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.filters::-webkit-scrollbar-thumb,
+.map-card-final .map-toolbar::-webkit-scrollbar-thumb,
+.mini-toolbar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.22);
+  border-radius: 999px;
+}
+
+.mataro-map,
+#mataroMap {
+  height: 620px;
+  min-height: 620px;
+}
+
+.map-card-final {
+  min-height: 620px;
+}
+
+@media (max-width: 1200px) {
+  :root {
+    --space: clamp(16px, 2.4vw, 24px);
+  }
+
+  .site-header {
+    padding-inline: clamp(14px, 3vw, 34px);
+  }
+
+  .main-nav {
+    gap: 16px;
+  }
+
+  .map-layout-final {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+  }
+
+  .profile-premium.profile-dashboard {
+    grid-template-columns: minmax(180px, .72fr) minmax(360px, 1.28fr);
+  }
+
+  .profile-right-panel {
+    grid-column: 1 / -1;
+  }
+
+  .shop-grid,
+  .inventory-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .site-header {
+    min-height: 68px;
+    gap: 10px;
+  }
+
+  .brand-logo {
+    width: clamp(108px, 25vw, 150px);
+    height: clamp(42px, 10vw, 58px);
+  }
+
+  .main-nav {
+    display: none;
+  }
+
+  .mobile-only {
+    display: inline-flex;
+  }
+
+  .mobile-menu {
+    top: 74px;
+  }
+
+  .mobile-menu.open {
+    display: block;
+  }
+
+  .icon-btn,
+  .avatar-btn,
+  .coin-pill {
+    min-width: 40px;
+    min-height: 40px;
+    padding-inline: 11px;
+  }
+
+  .coin-pill {
+    max-width: 118px;
+  }
+
+  .app-shell {
+    padding-top: 28px;
+    padding-bottom: 58px;
+  }
+
+  .home-hero {
+    min-height: auto;
+    padding: clamp(28px, 6vw, 44px);
+    display: grid;
+    align-items: end;
+  }
+
+  .home-hero-content {
+    max-width: 100%;
+  }
+
+  .home-hero-actions,
+  .cta-row {
+    align-items: stretch;
+  }
+
+  .home-event-grid,
+  .home-quick-grid,
+  .grid-3,
+  .mini-game-grid,
+  .games-catalog-head,
+  .mini-reward-grid,
+  .mini-final-grid,
+  .mini-bottom-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-mini-band,
+  .mini-hero-remake,
+  .mini-hero-ultra,
+  .mini-hero-reborn,
+  .mini-mission-hero,
+  .agenda-live-hero,
+  .program-layout,
+  .map-layout,
+  .map-layout-final,
+  .detail-layout,
+  .profile-top,
+  .settings-layout,
+  .access-grid,
+  .inventory-layout,
+  .profile-premium,
+  .profile-premium.profile-dashboard,
+  .profile-character-card,
+  .castle-head {
+    grid-template-columns: 1fr;
+  }
+
+  .home-mini-art,
+  .mini-hero-scene {
+    order: 2;
+  }
+
+  .home-mini-stats,
+  .mini-dashboard,
+  .shop-summary,
+  .equipped-grid,
+  .profile-settings-grid,
+  .profile-slot-list,
+  .profile-summary-compact .quick-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .program-layout,
+  .detail-layout,
+  .inventory-layout,
+  .profile-premium,
+  .profile-premium.profile-dashboard {
+    gap: 18px;
+  }
+
+  .day-summary,
+  .detail-side,
+  .map-side-head {
+    position: static;
+  }
+
+  .filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 2px 2px 8px;
+    margin-inline: calc(var(--space) * -1);
+    padding-inline: var(--space);
+    scroll-snap-type: x proximity;
+  }
+
+  .filters .chip {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .field {
+    width: 100%;
+  }
+
+  .event-card {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .event-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .map-card-final,
+  .mataro-map,
+  #mataroMap {
+    height: 480px;
+    min-height: 480px;
+  }
+
+  .map-side-final,
+  .map-side {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .detail-hero,
+  .detail-hero-content {
+    min-height: 360px;
+  }
+
+  .description {
+    max-height: none;
+  }
+
+  .shop-grid,
+  .inventory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .avatar-stage {
+    grid-template-columns: 132px minmax(0, 1fr);
+  }
+
+  .profile-side-panel,
+  .profile-avatar-focus,
+  .profile-right-panel {
+    grid-column: auto;
+  }
+
+  .profile-avatar-focus .profile-character-showcase {
+    justify-items: center;
+  }
+
+  .castle-user {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 680px) {
+  :root {
+    --space: 14px;
+    --radius: 20px;
+  }
+
+  body {
+    min-width: 0;
+  }
+
+  .site-header {
+    min-height: 64px;
+    padding-inline: 10px;
+  }
+
+  .brand-logo {
+    width: 104px;
+    height: 42px;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .icon-btn,
+  .avatar-btn,
+  .coin-pill {
+    min-width: 38px;
+    min-height: 38px;
+    padding-inline: 9px;
+  }
+
+  .coin-pill {
+    max-width: 96px;
+  }
+
+  .coin-pill span {
+    display: none;
+  }
+
+  .mobile-menu {
+    top: 68px;
+    right: 10px;
+    width: min(300px, calc(100vw - 20px));
+  }
+
+  .app-shell {
+    padding-top: 22px;
+    padding-bottom: 48px;
+  }
+
+  .site-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .section {
+    margin-top: 38px;
+  }
+
+  .section-head,
+  .map-side-head,
+  .compact-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .page-title {
+    margin-bottom: 18px;
+  }
+
+  .page-title .cta-row,
+  .home-hero-actions,
+  .mini-actions,
+  .home-mini-actions,
+  .profile-character-actions {
+    width: 100%;
+  }
+
+  .page-title .btn,
+  .home-hero-actions .btn,
+  .mini-actions .btn,
+  .mini-pill-link,
+  .home-mini-actions .btn,
+  .home-mini-link,
+  .profile-character-actions .btn,
+  #goMap {
+    width: 100%;
+  }
+
+  .home-hero {
+    min-height: 560px;
+    border-radius: 24px;
+    padding: 24px;
+  }
+
+  .home-date-chip {
+    width: 100%;
+  }
+
+  .home-event-grid,
+  .home-quick-grid,
+  .grid-3,
+  .mini-game-grid,
+  .games-catalog-head,
+  .mini-reward-grid,
+  .mini-final-grid,
+  .mini-bottom-grid,
+  .shop-grid,
+  .inventory-grid,
+  .home-mini-stats,
+  .mini-dashboard,
+  .shop-summary,
+  .agenda-live-stats,
+  .equipped-grid,
+  .profile-settings-grid,
+  .profile-slot-list,
+  .profile-summary-compact .quick-stats,
+  .castle-hud,
+  .official-bells-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-mini-band,
+  .mini-hero-remake,
+  .mini-hero-ultra,
+  .mini-hero-reborn,
+  .mini-games-panel,
+  .mini-games-ultra,
+  .content-card,
+  .side-panel,
+  .profile-card,
+  .login-card,
+  .shop-card,
+  .inv-card,
+  .avatar-loadout {
+    border-radius: 22px;
+    padding: 18px;
+  }
+
+  .home-mini-art {
+    min-height: 300px;
+  }
+
+  .home-mini-copy h2,
+  .mini-hero-copy h1,
+  .mini-hero-reborn h1 {
+    font-size: clamp(2.4rem, 13vw, 3.4rem);
+    line-height: .92;
+  }
+
+  .mini-hero-scene,
+  .mini-scene-panel {
+    min-height: 320px;
+  }
+
+  .mini-floating-card,
+  .mini-scene-ribbon {
+    display: none;
+  }
+
+  .event-card {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .time-badge {
+    width: 66px;
+    height: 66px;
+  }
+
+  .event-actions,
+  .map-event-card .cta-row,
+  .cta-row.compact {
+    width: 100%;
+  }
+
+  .event-actions .btn,
+  .map-event-card .btn,
+  .cta-row.compact .btn {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .input,
+  .search-input {
+    min-height: 48px;
+  }
+
+  .map-card-final {
+    display: flex;
+    flex-direction: column;
+    min-height: auto;
+    border-radius: 22px;
+  }
+
+  .map-card-final,
+  .mataro-map,
+  #mataroMap {
+    height: 360px;
+    min-height: 360px;
+  }
+
+  .map-topbar {
+    position: static;
+    flex-direction: column;
+    padding: 10px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(18,9,12,.96);
+  }
+
+  .map-card-final .map-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .map-reset {
+    width: 100%;
+  }
+
+  .map-legend {
+    display: none;
+  }
+
+  .map-fallback {
+    inset: auto 10px 10px;
+  }
+
+  .detail-hero,
+  .detail-hero-content {
+    min-height: 330px;
+    border-radius: 22px;
+  }
+
+  .detail-hero-content {
+    padding: 20px;
+  }
+
+  .info-strip {
+    gap: 8px;
+  }
+
+  .side-map,
+  #detailMap {
+    min-height: 220px;
+    height: 220px;
+  }
+
+  .profile-row,
+  .settings-item,
+  .quick-action,
+  .mini-status-card,
+  .mini-info-card,
+  .profile-locked {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-side-panel {
+    text-align: center;
+  }
+
+  .profile-side-panel .coin-line,
+  .profile-character-actions {
+    justify-content: center;
+  }
+
+  .profile-avatar-focus {
+    min-height: 420px;
+    padding: 14px;
+  }
+
+  .profile-avatar-focus .profile-character-showcase,
+  .profile-avatar-focus .character-preview-hero {
+    min-height: 360px;
+  }
+
+  .profile-avatar-focus .character-base-figure {
+    width: min(230px, 78vw);
+    height: 300px;
+  }
+
+  .avatar-stage {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .avatar-slots,
+  .inventory-layout {
+    width: 100%;
+  }
+
+  .shop-img,
+  .inv-art {
+    min-height: 140px;
+  }
+
+  .overlay {
+    padding-top: 78px;
+  }
+
+  .search-panel {
+    padding: 22px;
+    border-radius: 22px;
+  }
+
+  .small-result {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-header {
+    gap: 6px;
+  }
+
+  .brand-logo {
+    width: 92px;
+    height: 38px;
+  }
+
+  .icon-btn,
+  .avatar-btn,
+  .coin-pill {
+    min-width: 36px;
+    min-height: 36px;
+    padding-inline: 8px;
+  }
+
+  .coin-pill {
+    max-width: 72px;
+    font-size: .76rem;
+  }
+
+  .app-shell {
+    padding-inline: 12px;
+  }
+
+  .home-hero,
+  .detail-hero {
+    margin-inline: -2px;
+  }
+
+  .home-hero h1,
+  .detail-title,
+  .page-title h2 {
+    font-size: clamp(2.2rem, 14vw, 3.2rem);
+  }
+
+  .lead,
+  p {
+    font-size: .95rem;
+  }
+
+  .btn {
+    min-height: 46px;
+    padding-inline: 15px;
+  }
+
+  .filters {
+    margin-inline: -12px;
+    padding-inline: 12px;
+  }
+
+  .chip {
+    min-height: 34px;
+    padding: .42rem .66rem;
+    font-size: .76rem;
+  }
+
+  .home-mini-art {
+    min-height: 260px;
+  }
+
+  .home-mini-castle {
+    transform: translate(-50%, -50%) scale(.74);
+  }
+
+  .home-mini-coin.big,
+  .home-mini-prize,
+  .home-mini-avatar,
+  .home-mini-token {
+    transform: scale(.82);
+  }
+
+  .mini-hero-scene,
+  .mini-scene-panel {
+    min-height: 280px;
+  }
+
+  .mini-scene-castle,
+  .mini-castle-illustration {
+    transform: translateX(-50%) scale(.68);
+    transform-origin: bottom center;
+  }
+
+  .game-art {
+    min-height: 185px;
+  }
+
+  .game-art span {
+    font-size: 5.4rem;
+  }
+
+  .map-card-final,
+  .mataro-map,
+  #mataroMap {
+    height: 360px;
+    min-height: 360px;
+    border-radius: 18px;
+  }
+
+  .map-event-card {
+    padding: 13px;
+    border-radius: 16px;
+  }
+
+  .content-card,
+  .side-panel,
+  .profile-card,
+  .shop-card,
+  .inv-card,
+  .mini-games-panel,
+  .mini-games-ultra {
+    padding: 16px;
+  }
+
+  .profile-avatar-focus {
+    min-height: 380px;
+  }
+
+  .profile-avatar-focus .profile-character-showcase,
+  .profile-avatar-focus .character-preview-hero {
+    min-height: 330px;
+  }
+
+  .profile-avatar-focus .character-base-figure {
+    width: 210px;
+    height: 280px;
+  }
+
+  .profile-avatar-focus .character-head {
+    font-size: 5.7rem;
+  }
+
+  .profile-avatar-focus .character-body {
+    width: 82px;
+    height: 62px;
+    font-size: 2.55rem;
+  }
+
+  .profile-avatar-focus .character-legs {
+    width: 98px;
+    height: 48px;
+    font-size: 2rem;
+  }
+
+  .toast {
+    width: calc(100vw - 24px);
+    border-radius: 16px;
+    text-align: center;
+  }
+}
