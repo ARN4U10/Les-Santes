@@ -49,11 +49,11 @@ const MINISANTES_GAMES = [
   {
     key: 'confeti',
     title: 'Atrapa el Confeti',
-    subtitle: 'Toca el confeti de la festa i prepara combos per quan s’obri el minijoc complet.',
+    subtitle: 'Atrapa Gegants i Robafaves, evita el Drac i els Diables, i encadena combos en 18 segons.',
     icon: '🎉',
-    badge: 'Properament',
+    badge: 'Disponible',
     prize: '+200',
-    status: 'Properament',
+    status: 'Disponible',
     theme: 'confetti',
     accent: 'game-card-blue'
   },
@@ -127,17 +127,17 @@ function toast(msg) {
 }
 
 function parseDate(value = '') {
-  const m = value.match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
+  const m = String(value || '').match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
   return m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]).getTime() : 0;
 }
 
 function formatTime(value = '') {
-  const m = value.match(/(\d{2})\.(\d{2})\.\d{4}\s+(\d{2}:\d{2})/);
+  const m = String(value || '').match(/(\d{2})\.(\d{2})\.\d{4}\s+(\d{2}:\d{2})/);
   return m ? m[3] : '--:--';
 }
 
 function formatDay(value = '') {
-  const m = value.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  const m = String(value || '').match(/(\d{2})\.(\d{2})\.(\d{4})/);
   return m ? `${m[1]}/${m[2]}` : 'Sense data';
 }
 
@@ -147,25 +147,84 @@ function mapCoordinate(value) {
 }
 
 function hasValidMapPoint(ev) {
-  const lat = mapCoordinate(ev.lat);
-  const lng = mapCoordinate(ev.lng);
-  return lat !== null && lng !== null && lat >= 41 && lat <= 42 && lng >= 2 && lng <= 3;
+  return Boolean(getValidCoordinates(ev));
 }
 
-function normalizeEvent(ev) {
+function normalizeText(text) {
+  return String(text ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function getEventDate(ev = {}) {
+  const sources = [ev.date_initial, ev.date_start, ev.start_date, ev.date, ev.datetime, ev.day];
+  for (const source of sources) {
+    const value = String(source ?? '').trim();
+    if (!value) continue;
+    const dotDate = value.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+    if (dotDate) return `${dotDate[1]}/${dotDate[2]}`;
+    const slashDate = value.match(/(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?/);
+    if (slashDate) return `${slashDate[1].padStart(2, '0')}/${slashDate[2].padStart(2, '0')}`;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${String(parsed.getDate()).padStart(2, '0')}/${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+    }
+  }
+  return 'Sense data';
+}
+
+function getEventCategories(ev = {}) {
+  const raw = ev.categories ?? ev.category ?? ev.cat ?? '';
+  const values = Array.isArray(raw) ? raw : String(raw).split(/[,;/|]/);
+  const cleaned = values.map((item) => String(item ?? '').trim()).filter(Boolean);
+  return cleaned.length ? [...new Set(cleaned)] : ['Altres'];
+}
+
+function matchesSearch(ev = {}, query = '') {
+  const q = normalizeText(query);
+  if (!q) return true;
+  const haystack = normalizeText([
+    ev.title,
+    ev.location,
+    ...getEventCategories(ev),
+    ev.description_short,
+    ev.shortText,
+    ev.description,
+    ev.pretitle
+  ].join(' '));
+  return haystack.includes(q);
+}
+
+function getValidCoordinates(ev = {}) {
+  const lat = mapCoordinate(ev.lat ?? ev.latitude);
+  const lng = mapCoordinate(ev.lng ?? ev.lon ?? ev.longitude);
+  if (lat === null || lng === null) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  if (lat === 0 && lng === 0) return null;
+  return { lat, lng };
+}
+
+function normalizeEvent(ev = {}) {
   const lat = mapCoordinate(ev.lat);
   const lng = mapCoordinate(ev.lng);
+  const cats = getEventCategories(ev);
+  const day = getEventDate(ev);
+  const description = String(ev.description ?? '');
+  const descriptionShort = String(ev.description_short ?? '');
   return {
     ...ev,
     lat,
     lng,
     title: ev.title || 'Sense títol',
     time: formatTime(ev.date_initial),
-    day: formatDay(ev.date_initial),
+    day,
     timestamp: parseDate(ev.date_initial),
-    cat: ev.category || 'Altres',
-    shortText: ev.description_short || (ev.description || '').slice(0, 220),
-    longText: ev.description || ev.description_short || 'No hi ha descripció disponible.',
+    cat: cats[0],
+    categories: cats,
+    shortText: descriptionShort || description.slice(0, 220),
+    longText: description || descriptionShort || 'No hi ha descripció disponible.',
     hasPoint: hasValidMapPoint({ ...ev, lat, lng })
   };
 }
@@ -306,22 +365,44 @@ function nearbyFeaturedEvents(limit = 8) {
 }
 
 function uniqueDays() {
-  return ['Tots', ...new Set(state.events.map((e) => e.day).filter(Boolean))].slice(0, 14);
+  return ['Tots', ...new Set(state.events.map(getEventDate).filter(Boolean))].slice(0, 14);
 }
 
 function categories() {
   return ['Tots', 'Música', 'Familiar', 'Tradicional', 'Cultura', 'Esports', 'Altres'];
 }
 
+function applyProgramFilters(events = state.events) {
+  const selectedDay = state.filters.day || 'Tots';
+  const selectedCategory = state.filters.category || 'Tots';
+  const knownCategories = categories().filter((cat) => cat !== 'Tots' && cat !== 'Altres');
+  const result = (events || []).filter((ev) => {
+    if (selectedDay !== 'Tots' && getEventDate(ev) !== selectedDay) return false;
+
+    if (selectedCategory !== 'Tots') {
+      const eventCategories = getEventCategories(ev);
+      const isOther = !eventCategories.some((cat) => knownCategories.includes(cat));
+      if (selectedCategory === 'Altres') {
+        if (!isOther && !eventCategories.includes('Altres')) return false;
+      } else if (!eventCategories.includes(selectedCategory)) {
+        return false;
+      }
+    }
+
+    return matchesSearch(ev, state.filters.q);
+  });
+  return result.sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+}
+
 function filteredEvents() {
-  const q = state.filters.q.trim().toLowerCase();
-  let result = [...state.events];
-  if (state.filters.day !== 'Tots') result = result.filter((e) => e.day === state.filters.day);
-  if (state.filters.category !== 'Tots') {
-    result = result.filter((e) => e.cat === state.filters.category || (state.filters.category === 'Altres' && !categories().includes(e.cat)));
-  }
-  if (q) result = result.filter((e) => `${e.title} ${e.pretitle} ${e.location} ${e.cat} ${e.shortText}`.toLowerCase().includes(q));
-  return result.sort((a, b) => a.timestamp - b.timestamp);
+  return applyProgramFilters();
+}
+
+function renderProgramEvents(events = []) {
+  const visibleEvents = Array.isArray(events) ? events : [];
+  return visibleEvents.length
+    ? visibleEvents.slice(0, 60).map(renderEventCard).join('')
+    : emptyState('No hi ha actes amb aquests filtres');
 }
 
 function renderHome() {
@@ -429,19 +510,19 @@ function homeQuickCard(item) {
 }
 
 function renderPrograma() {
-  const result = filteredEvents();
+  const result = applyProgramFilters();
   const counts = {
     total: result.length,
-    music: result.filter((e) => e.cat === 'Música').length,
-    family: result.filter((e) => e.cat === 'Familiar').length
+    music: result.filter((e) => getEventCategories(e).includes('Música')).length,
+    family: result.filter((e) => getEventCategories(e).includes('Familiar')).length
   };
   app.innerHTML = `
     ${pageTitle('Programa', 'Filtra per dia, categoria o cerca lliure.', '<a class="btn btn-map" href="#mapa">Veure mapa d’actes</a>')}
-    <div class="filters" id="dayFilters">${uniqueDays().map((d) => `<button class="chip ${state.filters.day === d ? 'active' : ''}" data-day="${escapeHTML(d)}">${escapeHTML(d)}</button>`).join('')}</div>
-    <div class="filters" id="catFilters">${categories().map((c) => `<button class="chip ${state.filters.category === c ? 'active' : ''}" data-cat="${escapeHTML(c)}">${escapeHTML(c)}</button>`).join('')}</div>
+    <div class="filters" id="dayFilters">${uniqueDays().map((d) => `<button class="chip ${state.filters.day === d ? 'active' : ''}" type="button" data-day="${escapeHTML(d)}">${escapeHTML(d)}</button>`).join('')}</div>
+    <div class="filters" id="catFilters">${categories().map((c) => `<button class="chip ${state.filters.category === c ? 'active' : ''}" type="button" data-cat="${escapeHTML(c)}">${escapeHTML(c)}</button>`).join('')}</div>
     <label class="field"><span>Cercar actes</span><input id="programSearch" class="input" type="search" placeholder="Castellers, concert, gegants..." value="${escapeHTML(state.filters.q)}"></label>
     <section class="program-layout">
-      <div class="event-list">${result.length ? result.slice(0, 60).map(renderEventCard).join('') : emptyState('No hi ha actes amb aquests filtres')}</div>
+      <div class="event-list">${renderProgramEvents(result)}</div>
       <aside class="side-panel day-summary info-highlight">
         <span class="eyebrow yellow">Resum del dia</span>
         <div class="quick-stats"><div class="stat"><strong>${counts.total}</strong><span>actes</span></div><div class="stat"><strong>${counts.music}</strong><span>música</span></div><div class="stat"><strong>${counts.family}</strong><span>familiar</span></div></div>
@@ -452,21 +533,25 @@ function renderPrograma() {
   $('#dayFilters')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-day]');
     if (!b) return;
-    state.filters.day = b.dataset.day;
+    state.filters.day = b.dataset.day || 'Tots';
     renderPrograma();
   });
   $('#catFilters')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-cat]');
     if (!b) return;
-    state.filters.category = b.dataset.cat;
+    state.filters.category = b.dataset.cat || 'Tots';
     renderPrograma();
   });
   $('#programSearch')?.addEventListener('input', (e) => {
+    const cursor = e.target.selectionStart ?? e.target.value.length;
     state.filters.q = e.target.value;
     renderPrograma();
-    $('#programSearch')?.focus();
+    const search = $('#programSearch');
+    search?.focus({ preventScroll: true });
+    search?.setSelectionRange(cursor, cursor);
   });
-  $('#resetFilters')?.addEventListener('click', () => {
+  $('#resetFilters')?.addEventListener('click', (e) => {
+    e.preventDefault();
     state.filters = { day: 'Tots', category: 'Tots', q: '' };
     renderPrograma();
   });
@@ -723,7 +808,7 @@ function renderDetail(id) {
         <h3>Sobre l’esdeveniment</h3>
         <p class="description">${escapeHTML(ev.longText)}</p>
         <div class="cta-row">
-          <button class="btn btn-primary primary-highlight" type="button" id="goMap">Com arribar</button>
+          <button class="btn btn-primary primary-highlight" type="button" id="goMap" data-event-id="${escapeHTML(ev.id)}">Com arribar</button>
           <a class="btn btn-ghost" href="#programa">Tornar al programa</a>
         </div>
       </article>
@@ -732,41 +817,56 @@ function renderDetail(id) {
         <div class="side-map info-highlight" id="detailMap" aria-label="Mapa petit de l’acte"></div>
       </aside>
     </section>`;
-  $('#goMap')?.addEventListener('click', () => openDirections(ev));
+  $('#goMap')?.addEventListener('click', handleDirectionsClick);
   setTimeout(() => initDetailMap(ev), 100);
 }
 
-function googleMapsRouteUrl(ev, origin = null) {
-  const destination = `${mapCoordinate(ev.lat)},${mapCoordinate(ev.lng)}`;
+function googleMapsRouteUrl(lat, lng, origin = null) {
+  const destination = `${lat},${lng}`;
   const params = new URLSearchParams({ api: '1', destination, travelmode: 'walking' });
   if (origin) params.set('origin', `${origin.latitude},${origin.longitude}`);
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
-function openMapWindow(url, popup = null) {
-  if (popup && !popup.closed) {
-    popup.location.href = url;
-    return;
-  }
-  window.open(url, '_blank', 'noopener');
+function showNoLocationMessage() {
+  toast('No hi ha ubicació disponible per aquest acte');
 }
 
-function openDirections(ev) {
-  if (!hasValidMapPoint(ev)) {
-    toast('No hi ha ubicació disponible');
+function openMapWindow(url) {
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) toast('El navegador ha bloquejat la finestra nova');
+  return opened;
+}
+
+function openDirections(lat, lng, label = '') {
+  const valid = getValidCoordinates({ lat, lng });
+  if (!valid) {
+    showNoLocationMessage();
     return;
   }
-  const fallbackUrl = googleMapsRouteUrl(ev);
-  const popup = window.open('', '_blank');
-  if (!navigator.geolocation) {
-    openMapWindow(fallbackUrl, popup);
-    return;
-  }
+  const fallbackUrl = googleMapsRouteUrl(valid.lat, valid.lng);
+  const opened = openMapWindow(fallbackUrl);
+  if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(
-    (pos) => openMapWindow(googleMapsRouteUrl(ev, pos.coords), popup),
-    () => openMapWindow(fallbackUrl, popup),
-    { enableHighAccuracy: true, timeout: 6000, maximumAge: 300000 }
+    (pos) => {
+      const originUrl = googleMapsRouteUrl(valid.lat, valid.lng, pos.coords);
+      if (opened && !opened.closed) opened.location.href = originUrl;
+    },
+    () => {},
+    { enableHighAccuracy: false, timeout: 1200, maximumAge: 300000 }
   );
+}
+
+function handleDirectionsClick(event) {
+  event?.preventDefault();
+  const eventId = event?.currentTarget?.dataset?.eventId;
+  const ev = state.events.find((item) => String(item.id) === String(eventId));
+  const coords = getValidCoordinates(ev);
+  if (!coords) {
+    showNoLocationMessage();
+    return;
+  }
+  openDirections(coords.lat, coords.lng, ev?.title || '');
 }
 
 function initDetailMap(ev) {
@@ -1270,6 +1370,10 @@ function bindGameButtons() {
       location.hash = '#memory';
       return;
     }
+    if (key === 'confeti') {
+      location.hash = '#confeti';
+      return;
+    }
     if (['gegants', 'correfoc', 'campanes'].includes(key)) {
       location.hash = `#${key}`;
       return;
@@ -1310,6 +1414,406 @@ function clearOfficialGame() {
 
 function officialCoins(score, divisor) {
   return Math.max(0, Math.min(260, Math.floor(score / divisor)));
+}
+
+function renderConfetiGame() {
+  if (!state.user && !state.guest) return renderMinisantesAccess();
+  clearOfficialGame();
+
+  const assets = {
+    gegant: { src: 'img/confeti/gegant.png', points: 10, negative: false, label: 'Gegant' },
+    robafaves: { src: 'img/confeti/robafaves.png', points: 8, negative: false, label: 'Robafaves' },
+    drac: { src: 'img/confeti/drac.png', points: -8, negative: true, label: 'Drac' },
+    diable: { src: 'img/confeti/diable.png', points: -5, negative: true, label: 'Diable' }
+  };
+
+  app.innerHTML = `
+    <section class="confeti-game-shell" aria-labelledby="confetiTitle">
+      <div id="confetiGameRoot" class="confeti-game-root" aria-label="Joc Atrapa el Confeti">
+        <canvas id="confetiBgCanvas" aria-hidden="true"></canvas>
+        <canvas id="confetiGameCanvas"></canvas>
+        <div id="confetiFlash" class="confeti-flash" aria-hidden="true"></div>
+        <section class="confeti-ui">
+          <header class="confeti-header">
+            <a class="confeti-exit" href="#jocs" aria-label="Sortir del joc">×</a>
+            <span id="confetiTitle" class="confeti-title"><img src="img/confeti/drac.png" alt=""> Atrapa el Confeti</span>
+            <span id="confetiScore" class="confeti-score" aria-label="Puntuació">0</span>
+          </header>
+          <div class="confeti-timer"><span id="confetiTimer"></span></div>
+          <div id="confetiLives" class="confeti-lives" aria-label="Vides"></div>
+        </section>
+        <div id="confetiFeedback" class="confeti-feedback" aria-hidden="true"></div>
+        <div id="confetiCombo" class="confeti-combo" aria-live="polite"></div>
+        <section id="confetiStart" class="confeti-screen">
+          <div class="confeti-strip">
+            <img src="img/confeti/gegant.png" alt="Gegant">
+            <img src="img/confeti/robafaves.png" alt="Robafaves">
+            <img src="img/confeti/drac.png" alt="Drac">
+            <img src="img/confeti/diable.png" alt="Diable">
+          </div>
+          <p class="confeti-banner">MiniSantes · Joc ràpid</p>
+          <h2>Atrapa el Confeti</h2>
+          <p>Toca els personatges bons per sumar punts i evita el Drac i els Diables. Tens 18 segons!</p>
+          <div class="confeti-legend">
+            <div class="good"><img src="img/confeti/gegant.png" alt=""><span>Gegant +10</span></div>
+            <div class="good"><img src="img/confeti/robafaves.png" alt=""><span>Robafaves +8</span></div>
+            <div class="bad"><img src="img/confeti/drac.png" alt=""><span>Drac -1 vida</span></div>
+            <div class="bad"><img src="img/confeti/diable.png" alt=""><span>Diable -5</span></div>
+          </div>
+          <button class="confeti-main-btn" id="confetiStartBtn" type="button">Començar ▶</button>
+        </section>
+        <section id="confetiEnd" class="confeti-screen hidden" aria-live="polite">
+          <div class="confeti-trophy">🏆</div>
+          <h2>Joc acabat!</h2>
+          <div class="confeti-results">
+            <article><strong id="confetiEndScore">0</strong><span>Punts</span></article>
+            <article><strong id="confetiEndCaught">0</strong><span>Atrapats</span></article>
+            <article><strong id="confetiEndCombo">0</strong><span>Max combo</span></article>
+          </div>
+          <p id="confetiEndCoins" class="confeti-coins">🪙 0 monedes guanyades</p>
+          <button class="confeti-main-btn" id="confetiReplay" type="button">Tornar a jugar</button>
+          <a class="confeti-secondary-btn" href="#jocs">Sortir</a>
+        </section>
+      </div>
+    </section>`;
+
+  const root = $('#confetiGameRoot');
+  const bgCanvas = $('#confetiBgCanvas');
+  const gameCanvas = $('#confetiGameCanvas');
+  const bgCtx = bgCanvas.getContext('2d');
+  const ctx = gameCanvas.getContext('2d');
+  const images = {};
+  const stars = Array.from({ length: 95 }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    r: Math.random() * 1.7 + 0.45,
+    a: Math.random() * Math.PI * 2,
+    c: Math.random() > .65 ? '#ffd100' : (Math.random() > .5 ? '#38bdf8' : '#ffffff')
+  }));
+  let objects = [];
+  let particles = [];
+  let score = 0;
+  let lives = 3;
+  let combo = 0;
+  let maxCombo = 0;
+  let caught = 0;
+  let timeLeft = 18;
+  let level = 1;
+  let spawnTimer = 0;
+  let difficultyTimer = 0;
+  let active = false;
+  let ended = false;
+  let lastTime = 0;
+  let raf = null;
+  let bgRaf = null;
+  let saved = false;
+
+  const el = (id) => document.getElementById(id);
+  const width = () => root.getBoundingClientRect().width;
+  const height = () => root.getBoundingClientRect().height;
+  const rgba = (hex, a) => {
+    const v = hex.replace('#', '');
+    return `rgba(${parseInt(v.slice(0, 2), 16)},${parseInt(v.slice(2, 4), 16)},${parseInt(v.slice(4, 6), 16)},${a})`;
+  };
+
+  function resize() {
+    const rect = root.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    [bgCanvas, gameCanvas].forEach((canvas) => {
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+    });
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function loadImages() {
+    return Promise.all(Object.entries(assets).map(([key, def]) => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = resolve;
+      img.onerror = resolve;
+      img.src = def.src;
+      images[key] = img;
+    })));
+  }
+
+  function updateHUD() {
+    el('confetiScore').textContent = score;
+    el('confetiTimer').style.width = `${Math.max(0, timeLeft / 18) * 100}%`;
+    el('confetiLives').innerHTML = Array.from({ length: 3 }, (_, i) => `<span>${i < lives ? '❤️' : '🖤'}</span>`).join('');
+  }
+
+  function drawBackground() {
+    const w = width();
+    const h = height();
+    bgCtx.clearRect(0, 0, w, h);
+    const g = bgCtx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#260608');
+    g.addColorStop(.48, '#130506');
+    g.addColorStop(1, '#070304');
+    bgCtx.fillStyle = g;
+    bgCtx.fillRect(0, 0, w, h);
+    const glow = bgCtx.createRadialGradient(w * .22, h * .12, 0, w * .22, h * .12, w * .64);
+    glow.addColorStop(0, 'rgba(255,209,0,.16)');
+    glow.addColorStop(1, 'transparent');
+    bgCtx.fillStyle = glow;
+    bgCtx.fillRect(0, 0, w, h);
+    const blue = bgCtx.createRadialGradient(w * .82, h * .64, 0, w * .82, h * .64, w * .72);
+    blue.addColorStop(0, 'rgba(30,144,255,.18)');
+    blue.addColorStop(1, 'transparent');
+    bgCtx.fillStyle = blue;
+    bgCtx.fillRect(0, 0, w, h);
+    stars.forEach((s) => {
+      s.a += 0.02;
+      bgCtx.fillStyle = rgba(s.c, 0.25 + Math.sin(s.a) * 0.12);
+      bgCtx.beginPath();
+      bgCtx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2);
+      bgCtx.fill();
+    });
+    bgRaf = requestAnimationFrame(drawBackground);
+  }
+
+  function spawnObject() {
+    const isNegative = Math.random() < Math.min(0.12 + level * 0.045, 0.36);
+    const keys = isNegative ? ['drac', 'diable'] : ['gegant', 'robafaves'];
+    const key = keys[Math.floor(Math.random() * keys.length)];
+    const def = assets[key];
+    const r = isNegative ? 22 + Math.random() * 18 : 24 + Math.random() * 18;
+    objects.push({
+      key,
+      def,
+      x: r * 1.5 + Math.random() * (width() - r * 3),
+      y: -r * 2.6,
+      r,
+      vx: (Math.random() - 0.5) * (1.3 + level * .15),
+      vy: 1.55 + level * 0.35 + Math.random() * 0.95,
+      rot: (Math.random() - .5) * .35,
+      rotV: (Math.random() - .5) * .055,
+      wobble: Math.random() * Math.PI * 2,
+      tapped: false,
+      tapAlpha: 1,
+      tapScale: 1
+    });
+  }
+
+  function drawObject(o) {
+    const img = images[o.key];
+    ctx.save();
+    ctx.globalAlpha = o.tapped ? Math.max(0, o.tapAlpha) : 1;
+    ctx.translate(o.x, o.y);
+    ctx.scale(o.tapped ? o.tapScale : 1, o.tapped ? o.tapScale : 1);
+    ctx.rotate(o.rot);
+    const size = o.r * (o.def.negative ? 2.7 : 2.45);
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, size * .75);
+    glow.addColorStop(0, o.def.negative ? 'rgba(225,6,0,.28)' : 'rgba(255,209,0,.25)');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, size * .75, 0, Math.PI * 2);
+    ctx.fill();
+    if (img?.complete && img.naturalWidth) {
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = o.def.negative ? '#e10600' : '#ffd100';
+      ctx.beginPath();
+      ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function createParticles(x, y, good = true) {
+    const colors = good ? ['#ffd100', '#ffffff', '#38bdf8', '#ff563a'] : ['#e10600', '#ff563a', '#2a0505'];
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1.2 + Math.random() * 3.4;
+      particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, c: colors[Math.floor(Math.random() * colors.length)], s: 3 + Math.random() * 5 });
+    }
+  }
+
+  function floatingScore(x, y, text, color) {
+    const item = document.createElement('div');
+    item.className = 'confeti-floating-score';
+    item.textContent = text;
+    item.style.left = `${Math.min(Math.max(x - 28, 8), width() - 96)}px`;
+    item.style.top = `${Math.max(y - 18, 74)}px`;
+    item.style.color = color;
+    el('confetiFeedback').appendChild(item);
+    setTimeout(() => item.remove(), 950);
+  }
+
+  function flash(color) {
+    const layer = el('confetiFlash');
+    layer.style.background = color;
+    layer.style.opacity = '.42';
+    clearTimeout(layer._timer);
+    layer._timer = setTimeout(() => { layer.style.opacity = '0'; }, 160);
+  }
+
+  function showCombo() {
+    const banner = el('confetiCombo');
+    banner.textContent = `Combo x${Math.floor(combo / 3) + 1}! +5`;
+    banner.classList.add('show');
+    clearTimeout(banner._timer);
+    banner._timer = setTimeout(() => banner.classList.remove('show'), 900);
+  }
+
+  function handleTap(clientX, clientY) {
+    if (!active) return;
+    const rect = gameCanvas.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const o = objects[i];
+      if (o.tapped) continue;
+      const dx = sx - o.x;
+      const dy = sy - o.y;
+      if (dx * dx + dy * dy > (o.r * 1.75) ** 2) continue;
+      o.tapped = true;
+      createParticles(o.x, o.y, !o.def.negative);
+      if (o.def.negative) {
+        score = Math.max(0, score + o.def.points);
+        combo = 0;
+        lives = Math.max(0, lives - 1);
+        floatingScore(o.x, o.y, String(o.def.points), '#ff563a');
+        flash('#e10600');
+        if (navigator.vibrate) navigator.vibrate(60);
+        if (lives === 0) setTimeout(endGame, 380);
+      } else {
+        combo++;
+        maxCombo = Math.max(maxCombo, combo);
+        caught++;
+        const bonus = combo % 3 === 0 ? 5 : 0;
+        score += o.def.points + bonus;
+        floatingScore(o.x, o.y, `+${o.def.points + bonus}`, '#ffd100');
+        flash('rgba(255,209,0,.25)');
+        if (bonus) showCombo();
+      }
+      updateHUD();
+      return;
+    }
+  }
+
+  function loop(ts) {
+    if (!active) return;
+    const dt = Math.min((ts - lastTime) / 16.67, 3) || 1;
+    lastTime = ts;
+    difficultyTimer += dt;
+    if (difficultyTimer > 115) {
+      level = Math.min(7, level + 1);
+      difficultyTimer = 0;
+    }
+    timeLeft -= dt / 60;
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      endGame();
+      return;
+    }
+    spawnTimer += dt;
+    if (spawnTimer > Math.max(20, 60 - level * 6)) {
+      spawnTimer = 0;
+      spawnObject();
+      if (level >= 3 && Math.random() < .35) spawnObject();
+      if (level >= 6 && Math.random() < .25) spawnObject();
+    }
+    objects.forEach((o) => {
+      if (o.tapped) {
+        o.tapAlpha -= .075 * dt;
+        o.tapScale += .055 * dt;
+        return;
+      }
+      o.y += o.vy * dt;
+      o.x += o.vx * dt + Math.sin(o.wobble) * .5;
+      o.rot += o.rotV * dt;
+      o.wobble += .035 * dt;
+      o.x = Math.max(o.r, Math.min(width() - o.r, o.x));
+    });
+    objects = objects.filter((o) => o.y < height() + 110 && (!o.tapped || o.tapAlpha > 0));
+    particles.forEach((p) => {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += .04 * dt;
+      p.life -= .03 * dt;
+    });
+    particles = particles.filter((p) => p.life > 0);
+    ctx.clearRect(0, 0, width(), height());
+    objects.forEach(drawObject);
+    particles.forEach((p) => {
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(p.x, p.y, p.s, p.s * .65);
+      ctx.globalAlpha = 1;
+    });
+    updateHUD();
+    raf = requestAnimationFrame(loop);
+  }
+
+  function startGame() {
+    el('confetiStart').classList.add('hidden');
+    el('confetiEnd').classList.add('hidden');
+    objects = [];
+    particles = [];
+    score = 0;
+    lives = 3;
+    combo = 0;
+    maxCombo = 0;
+    caught = 0;
+    timeLeft = 18;
+    level = 1;
+    spawnTimer = 0;
+    difficultyTimer = 0;
+    saved = false;
+    active = true;
+    ended = false;
+    lastTime = performance.now();
+    updateHUD();
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(loop);
+  }
+
+  function endGame() {
+    if (ended) return;
+    ended = true;
+    active = false;
+    if (raf) cancelAnimationFrame(raf);
+    const coins = Math.min(200, Math.floor(score / 4));
+    el('confetiEndScore').textContent = money(score);
+    el('confetiEndCaught').textContent = caught;
+    el('confetiEndCombo').textContent = maxCombo;
+    el('confetiEndCoins').textContent = `🪙 ${coins} monedes guanyades`;
+    el('confetiEnd').classList.remove('hidden');
+    if (state.user && !saved) {
+      saved = true;
+      saveGameProgress('confeti', score, coins, `Has guanyat ${coins} monedes!`);
+    }
+    if (!state.user && state.guest) toast('Mode convidat: resultat no guardat');
+  }
+
+  const onMouseDown = (e) => handleTap(e.clientX, e.clientY);
+  const onTouchStart = (e) => {
+    e.preventDefault();
+    [...e.changedTouches].forEach((touch) => handleTap(touch.clientX, touch.clientY));
+  };
+  window.addEventListener('resize', resize);
+  gameCanvas.addEventListener('mousedown', onMouseDown);
+  gameCanvas.addEventListener('touchstart', onTouchStart, { passive: false });
+  el('confetiStartBtn')?.addEventListener('click', startGame);
+  el('confetiReplay')?.addEventListener('click', startGame);
+  resize();
+  updateHUD();
+  loadImages().then(drawBackground);
+
+  state.officialGameCleanup = () => {
+    active = false;
+    ended = true;
+    cancelAnimationFrame(raf);
+    cancelAnimationFrame(bgRaf);
+    window.removeEventListener('resize', resize);
+    gameCanvas.removeEventListener('mousedown', onMouseDown);
+    gameCanvas.removeEventListener('touchstart', onTouchStart);
+  };
 }
 
 function renderOfficialGameShell(config) {
@@ -2290,6 +2794,7 @@ function router() {
     minisantes: renderMinisantes,
     jocs: renderAllGames,
     castell: renderCastleGame,
+    confeti: renderConfetiGame,
     gegants: renderGegantsGame,
     correfoc: renderCorrefocGame,
     campanes: renderCampanesGame,
