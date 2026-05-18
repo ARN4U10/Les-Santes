@@ -2,6 +2,7 @@ import hashlib
 import html
 import json
 import sqlite3
+import os
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -428,7 +429,8 @@ def profile_payload(conn, user_id):
 
 if __name__ == "__main__":
     init_db()
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"Les Santes disponible a http://{HOST}:{PORT}")
+    port = int(os.environ.get("PORT", PORT))
+    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    print(f"Les Santes disponible a http://0.0.0.0:{port}")
     print(f"Base de dades: {DB_PATH}")
     server.serve_forever()

@@ -411,7 +411,6 @@ function renderHome() {
   const highlights = nearby.events;
   const quickLinks = [
     { href: '#programa', icon: '📅', theme: 'red', title: 'Programa', text: 'Consulta tots els actes, filtra per dia i troba el teu pla.' },
-    { href: '#home/avui', icon: '⏱️', theme: 'gold', title: 'Què passa avui?', text: 'Baixa directament als actes destacats de la portada.' },
     { href: '#mapa', icon: '🗺️', theme: 'blue', title: 'Mapa d’actes', text: 'Explora Mataró amb pins reals i ubicacions sincronitzades.' },
     { href: '#minisantes', icon: '🎮', theme: 'yellow', title: 'MiniSantes', text: 'Jocs, reptes i recompenses per a infants de 6 a 12 anys.' },
     ...(state.user ? [{ href: '#botiga', icon: '🎁', theme: 'gold', title: 'Recompenses', text: 'Canvia monedes per premis i col·leccionables digitals.' }] : [])
