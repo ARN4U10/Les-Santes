@@ -68,15 +68,6 @@ El fitxer `database.sql` documenta el mateix esquema.
 - `POST /api/equip`
 - `POST /api/progress`
 
-## Canvis recents
-
-- El botó `Què passa avui?` porta a `#home/avui`, la secció de la Home que hi ha just sota el hero amb actes del dia o destacats propers.
-- El botó `Com arribar` del detall obre Google Maps amb ruta a les coordenades de l’acte; si no hi ha permisos de geolocalització, obre igual el destí.
-- `Construeix el Castell` és jugable amb 3 vides, puntuació, monedes finals i guardat de progrés per a usuaris registrats.
-- El catàleg de jocs integra `Fes Ballar els Gegants`, `Correfoc Segur` i `Toc de Campanes` com a minijocs funcionals.
-- La botiga serveix per comprar recompenses noves; l’inventari serveix per aplicar-les al personatge, amb un sol objecte equipat per tipus.
-- El perfil mostra avatar/personatge, nivell, monedes, progrés, recompenses aplicades i últims jocs jugats; en mode convidat queda bloquejat amb missatge clar.
-
 ## Dependències
 
 No cal instal·lar paquets Python externs. S’utilitza:
@@ -98,9 +89,3 @@ data/actes_santes_2025_pia.json
 data/users.example.json
 ```
 
-
-## Organització professional del codi
-
-S’ha afegit documentació a `docs/ARCHITECTURE.md` amb l’estructura del projecte i el funcionament de la BBDD.
-
-La pantalla de perfil ara mostra un personatge MiniSantes que es vesteix dinàmicament segons les recompenses equipades a l’inventari. La lògica de compra/equipament continua depenent de SQLite i de les rutes `/api/buy` i `/api/equip`.
